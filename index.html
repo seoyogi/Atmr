@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Yuta Forest 3D - Virtual Stick</title>
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #88c070;
+    touch-action: none;
+  }
+
+  #renderCanvas {
+    width: 100vw;
+    height: 100vh;
+    display: block;
+  }
+
+  #joystickContainer {
+    position: absolute;
+    left: 20px;
+    bottom: 20px;
+    width: 120px;
+    height: 120px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 50%;
+  }
+
+  #stick {
+    position: absolute;
+    left: 35px;
+    top: 35px;
+    width: 50px;
+    height: 50px;
+    background: rgba(255,255,255,0.7);
+    border-radius: 50%;
+  }
+</style>
+
+</head>
+
+<body>
+
+<canvas id="renderCanvas"></canvas>
+
+<div id="joystickContainer">
+  <div id="stick"></div>
+</div>
+
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+
+<script>
+
+const canvas = document.getElementById("renderCanvas");
+const engine = new BABYLON.Engine(canvas, true);
+
+let moveX = 0;
+let moveY = 0;
+
+function setupJoystick() {
+  const container = document.getElementById("joystickContainer");
+  const stick = document.getElementById("stick");
+
+  let dragging = false;
+
+  container.addEventListener("touchstart", () => {
+    dragging = true;
+  });
+
+  container.addEventListener("touchend", () => {
+    dragging = false;
+    stick.style.left = "35px";
+    stick.style.top = "35px";
+    moveX = 0;
+    moveY = 0;
+  });
+
+  container.addEventListener("touchmove", (e) => {
+    if (!dragging) return;
+
+    const rect = container.getBoundingClientRect();
+    const x = e.touches[0].clientX - rect.left - 60;
+    const y = e.touches[0].clientY - rect.top - 60;
+
+    const distance = Math.min(40, Math.sqrt(x*x + y*y));
+    const angle = Math.atan2(y, x);
+
+    const dx = Math.cos(angle) * distance;
+    const dy = Math.sin(angle) * distance;
+
+    stick.style.left = 35 + dx + "px";
+    stick.style.top = 35 + dy + "px";
+
+    moveX = dx / 40;
+    moveY = dy / 40;
+  });
+}
+
+function createScene() {
+  const scene = new BABYLON.Scene(engine);
+
+  const camera = new BABYLON.ArcRotateCamera(
+    "camera",
+    Math.PI / 2,
+    Math.PI / 3,
+    8,
+    new BABYLON.Vector3(0, 1, 0),
+    scene
+  );
+
+  camera.attachControl(canvas, true);
+
+  new BABYLON.HemisphericLight(
+    "light",
+    new BABYLON.Vector3(0, 1, 0),
+    scene
+  );
+
+  const ground = BABYLON.MeshBuilder.CreateGround(
+    "ground",
+    { width: 30, height: 30 },
+    scene
+  );
+
+  const mat = new BABYLON.StandardMaterial("mat", scene);
+  mat.diffuseColor = new BABYLON.Color3(0.3, 0.8, 0.3);
+  ground.material = mat;
+
+  BABYLON.SceneLoader.ImportMesh(
+    "",
+    "./",
+    "girl character 3d model.glb",
+    scene,
+    function (meshes, ps, sk, animations) {
+
+      const player = meshes[0];
+      player.position.y = 0;
+
+      camera.lockedTarget = player;
+
+      const speed = 0.1;
+
+      scene.onBeforeRenderObservable.add(() => {
+        player.position.x += moveX * speed;
+        player.position.z += moveY * speed;
+      });
+
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowUp" || e.key === "w") moveY = 1;
+        if (e.key === "ArrowDown" || e.key === "s") moveY = -1;
+        if (e.key === "ArrowLeft" || e.key === "a") moveX = -1;
+        if (e.key === "ArrowRight" || e.key === "d") moveX = 1;
+      });
+
+      window.addEventListener("keyup", () => {
+        moveX = 0;
+        moveY = 0;
+      });
+
+      if (animations.length > 0) {
+        animations[0].start(true);
+      }
+    }
+  );
+
+  return scene;
+}
+
+setupJoystick();
+
+const scene = createScene();
+
+engine.runRenderLoop(() => {
+  scene.render();
+});
+
+window.addEventListener("resize", () => {
+  engine.resize();
+});
+
+</script>
+
+</body>
+</html>
