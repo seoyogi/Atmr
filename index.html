@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Yuta Forest 3D - Virtual Stick</title>
+<title>Yuta Forest 3D - Improved</title>
 
 <style>
   html, body {
@@ -67,9 +67,7 @@ function setupJoystick() {
 
   let dragging = false;
 
-  container.addEventListener("touchstart", () => {
-    dragging = true;
-  });
+  container.addEventListener("touchstart", () => dragging = true);
 
   container.addEventListener("touchend", () => {
     dragging = false;
@@ -103,16 +101,22 @@ function setupJoystick() {
 function createScene() {
   const scene = new BABYLON.Scene(engine);
 
+  // ===== カメラ設定（地面に潜らないよう制限）=====
   const camera = new BABYLON.ArcRotateCamera(
     "camera",
     Math.PI / 2,
     Math.PI / 3,
-    8,
+    12,
     new BABYLON.Vector3(0, 1, 0),
     scene
   );
 
   camera.attachControl(canvas, true);
+
+  camera.lowerBetaLimit = 0.3;   // 下向きすぎ防止
+  camera.upperBetaLimit = 1.4;   // 上向きすぎ防止
+  camera.lowerRadiusLimit = 6;   // 近づきすぎ防止
+  camera.upperRadiusLimit = 20;  // 離れすぎ防止
 
   new BABYLON.HemisphericLight(
     "light",
@@ -120,16 +124,36 @@ function createScene() {
     scene
   );
 
-  const ground = BABYLON.MeshBuilder.CreateGround(
-    "ground",
-    { width: 30, height: 30 },
+  // ===== 島っぽい地形 =====
+  const ground = BABYLON.MeshBuilder.CreateDisc(
+    "island",
+    { radius: 20, tessellation: 64 },
     scene
   );
 
-  const mat = new BABYLON.StandardMaterial("mat", scene);
-  mat.diffuseColor = new BABYLON.Color3(0.3, 0.8, 0.3);
-  ground.material = mat;
+  ground.rotation.x = Math.PI / 2;
 
+  const groundMat = new BABYLON.StandardMaterial("gmat", scene);
+  groundMat.diffuseColor = new BABYLON.Color3(0.2, 0.75, 0.25);
+  ground.material = groundMat;
+
+  // 少し盛り上げて“島感”
+  ground.position.y = -0.2;
+
+  // 海っぽい外側
+  const sea = BABYLON.MeshBuilder.CreateGround(
+    "sea",
+    { width: 200, height: 200 },
+    scene
+  );
+
+  const seaMat = new BABYLON.StandardMaterial("smat", scene);
+  seaMat.diffuseColor = new BABYLON.Color3(0.2, 0.4, 0.9);
+  sea.material = seaMat;
+
+  sea.position.y = -0.4;
+
+  // ===== キャラ読み込み =====
   BABYLON.SceneLoader.ImportMesh(
     "",
     "./",
@@ -138,15 +162,22 @@ function createScene() {
     function (meshes, ps, sk, animations) {
 
       const player = meshes[0];
-      player.position.y = 0;
+
+      // ここが重要！キャラをちゃんと地面の上に
+      player.position = new BABYLON.Vector3(0, 0.1, 0);
 
       camera.lockedTarget = player;
 
-      const speed = 0.1;
+      const speed = 0.12;
 
       scene.onBeforeRenderObservable.add(() => {
         player.position.x += moveX * speed;
         player.position.z += moveY * speed;
+
+        // 移動方向を向く
+        if (moveX !== 0 || moveY !== 0) {
+          player.rotation.y = Math.atan2(moveX, moveY);
+        }
       });
 
       window.addEventListener("keydown", (e) => {
