@@ -2,249 +2,116 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Yuta Forest - Fixed Version</title>
+<title>Atsumori Style - AFrame Version</title>
+
+<script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>
 
 <style>
-html, body {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  background: #88c070;
-  touch-action: none;
-}
-
-#renderCanvas {
-  width: 100vw;
-  height: 100vh;
-  display: block;
-}
-
-#joystickContainer {
-  position: absolute;
-  left: 20px;
-  bottom: 20px;
-  width: 140px;
-  height: 140px;
-  background: rgba(0,0,0,0.2);
-  border-radius: 50%;
-}
-
-#stick {
-  position: absolute;
-  left: 45px;
-  top: 45px;
-  width: 50px;
-  height: 50px;
-  background: rgba(255,255,255,0.8);
-  border-radius: 50%;
-}
-
 #viewButton {
   position: absolute;
   right: 20px;
   bottom: 20px;
-  padding: 10px 15px;
+  padding: 10px;
   font-size: 16px;
+  z-index: 10;
 }
 </style>
 </head>
 
 <body>
 
-<canvas id="renderCanvas"></canvas>
-
-<div id="joystickContainer">
-  <div id="stick"></div>
-</div>
-
 <button id="viewButton">視点切替</button>
 
-<script src="https://cdn.babylonjs.com/babylon.js"></script>
-<script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+<a-scene physics="gravity: -9.8">
+
+  <!-- 空 -->
+  <a-sky color="#87CEEB"></a-sky>
+
+  <!-- 島 -->
+  <a-cylinder
+    position="0 0 0"
+    radius="60"
+    height="0.5"
+    color="#3cb043"
+    static-body>
+  </a-cylinder>
+
+  <!-- 砂浜 -->
+  <a-cylinder
+    position="0 -0.1 0"
+    radius="75"
+    height="0.4"
+    color="#e8d8a8"
+    static-body>
+  </a-cylinder>
+
+  <!-- 海 -->
+  <a-box
+    position="0 -1 0"
+    width="400"
+    depth="400"
+    height="1"
+    color="#1e4f9c"
+    static-body>
+  </a-box>
+
+  <!-- プレイヤー -->
+  <a-entity id="player"
+    position="0 2 0"
+    dynamic-body="mass: 5">
+
+    <a-entity
+      id="character"
+      gltf-model="girl character 3d model.glb"
+      scale="1 1 1">
+    </a-entity>
+
+    <a-entity id="camera"
+      camera
+      position="0 3 6"
+      look-controls="enabled:false">
+    </a-entity>
+
+  </a-entity>
+
+</a-scene>
 
 <script>
 
-const canvas = document.getElementById("renderCanvas");
-const engine = new BABYLON.Engine(canvas, true);
+let mode = 0;
 
-let moveX = 0;
-let moveY = 0;
+document.getElementById("viewButton").onclick = () => {
+  mode = (mode + 1) % 2;
 
-function setupJoystick() {
-  const container = document.getElementById("joystickContainer");
-  const stick = document.getElementById("stick");
+  const cam = document.getElementById("camera");
 
-  let dragging = false;
+  if (mode === 0) {
+    cam.setAttribute("position", "0 3 6");
+  } else {
+    cam.setAttribute("position", "0 3 -6");
+  }
+};
 
-  container.addEventListener("touchstart", () => dragging = true);
+// キーボード移動
+document.addEventListener("keydown", (e) => {
+  const player = document.getElementById("player");
 
-  container.addEventListener("touchend", () => {
-    dragging = false;
-    stick.style.left = "45px";
-    stick.style.top = "45px";
-    moveX = 0;
-    moveY = 0;
-  });
+  let pos = player.getAttribute("position");
 
-  container.addEventListener("touchmove", (e) => {
-    if (!dragging) return;
+  const speed = 0.5;
 
-    const rect = container.getBoundingClientRect();
-    const x = e.touches[0].clientX - rect.left - 70;
-    const y = e.touches[0].clientY - rect.top - 70;
+  if (e.key === "w" || e.key === "ArrowUp") pos.z -= speed;
+  if (e.key === "s" || e.key === "ArrowDown") pos.z += speed;
+  if (e.key === "a" || e.key === "ArrowLeft") pos.x -= speed;
+  if (e.key === "d" || e.key === "ArrowRight") pos.x += speed;
 
-    const distance = Math.min(50, Math.sqrt(x*x + y*y));
-    const angle = Math.atan2(y, x);
-
-    const dx = Math.cos(angle) * distance;
-    const dy = Math.sin(angle) * distance;
-
-    stick.style.left = 45 + dx + "px";
-    stick.style.top = 45 + dy + "px";
-
-    // ここ重要：向きをゲーム用に正しく変換
-    moveX = dx / 50;
-    moveY = -dy / 50;
-  });
-}
-
-function createScene() {
-  const scene = new BABYLON.Scene(engine);
-
-  // 空（スカイボックス）
-  const sky = BABYLON.MeshBuilder.CreateBox("sky", { size: 500 }, scene);
-  const skyMat = new BABYLON.StandardMaterial("skyMat", scene);
-  skyMat.backFaceCulling = false;
-  skyMat.diffuseColor = new BABYLON.Color3(0.5, 0.8, 1);
-  sky.material = skyMat;
-
-  // カメラ（感度安定）
-  const camera = new BABYLON.ArcRotateCamera(
-    "camera",
-    Math.PI,
-    1.2,
-    12,
-    new BABYLON.Vector3(0, 1.2, 0),
-    scene
-  );
-
-  camera.attachControl(canvas, true);
-  camera.inputs.clear();
-
-  new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-
-  // ===== 島本体 =====
-  const island = BABYLON.MeshBuilder.CreateDisc(
-    "island",
-    { radius: 60, tessellation: 128 },
-    scene
-  );
-  island.rotation.x = Math.PI / 2;
-  island.position.y = 0;
-
-  const islandMat = new BABYLON.StandardMaterial("imat", scene);
-  islandMat.diffuseColor = new BABYLON.Color3(0.25, 0.75, 0.3);
-  island.material = islandMat;
-
-  // ===== 砂浜 =====
-  const beach = BABYLON.MeshBuilder.CreateDisc(
-    "beach",
-    { radius: 75, tessellation: 128 },
-    scene
-  );
-  beach.rotation.x = Math.PI / 2;
-  beach.position.y = -0.1;
-
-  const beachMat = new BABYLON.StandardMaterial("bmat", scene);
-  beachMat.diffuseColor = new BABYLON.Color3(0.9, 0.8, 0.5);
-  beach.material = beachMat;
-
-  // ===== 海 =====
-  const sea = BABYLON.MeshBuilder.CreateGround(
-    "sea",
-    { width: 400, height: 400 },
-    scene
-  );
-
-  const seaMat = new BABYLON.StandardMaterial("smat", scene);
-  seaMat.diffuseColor = new BABYLON.Color3(0.1, 0.3, 0.8);
-  sea.material = seaMat;
-  sea.position.y = -0.3;
-
-  // キャラ読み込み
-  BABYLON.SceneLoader.ImportMesh(
-    "",
-    "./",
-    "girl character 3d model.glb",
-    scene,
-    function (meshes, ps, sk, animations) {
-
-      const player = meshes[0];
-
-      // ★埋もれ対策：強制的に少し上げる
-      player.position = new BABYLON.Vector3(0, 0.8, 0);
-
-      let cameraMode = 0;
-
-      document.getElementById("viewButton").onclick = () => {
-        cameraMode = (cameraMode + 1) % 2;
-      };
-
-      scene.onBeforeRenderObservable.add(() => {
-
-        const speed = 0.25;
-
-        let newX = player.position.x + moveX * speed;
-        let newZ = player.position.z + moveY * speed;
-
-        // 島の範囲チェック（海に入れない）
-        const dist = Math.sqrt(newX*newX + newZ*newZ);
-        if (dist < 58) {
-          player.position.x = newX;
-          player.position.z = newZ;
-        }
-
-        if (moveX !== 0 || moveY !== 0) {
-          player.rotation.y = Math.atan2(moveX, moveY);
-        }
-
-        // カメラ固定モード
-        if (cameraMode === 0) {
-          camera.alpha = player.rotation.y + Math.PI;
-        } else {
-          camera.alpha = player.rotation.y;
-        }
-
-        camera.target = player.position.add(new BABYLON.Vector3(0, 1.2, 0));
-      });
-
-      window.addEventListener("keydown", (e) => {
-        if (e.key === "ArrowUp" || e.key === "w") moveY = 1;
-        if (e.key === "ArrowDown" || e.key === "s") moveY = -1;
-        if (e.key === "ArrowLeft" || e.key === "a") moveX = -1;
-        if (e.key === "ArrowRight" || e.key === "d") moveX = 1;
-      });
-
-      window.addEventListener("keyup", () => {
-        moveX = 0;
-        moveY = 0;
-      });
-
-      if (animations.length > 0) {
-        animations[0].start(true);
-      }
-    }
-  );
-
-  return scene;
-}
-
-setupJoystick();
-
-const scene = createScene();
-
-engine.runRenderLoop(() => scene.render());
-window.addEventListener("resize", () => engine.resize());
+  // 海に出ないよう制限
+  const dist = Math.sqrt(pos.x*pos.x + pos.z*pos.z);
+  if (dist < 58) {
+    player.setAttribute("position", pos);
+  }
+});
 
 </script>
 
