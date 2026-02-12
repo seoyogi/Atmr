@@ -689,15 +689,17 @@ function loadPlayer(scene, sg) {
         sg.addShadowCaster(m, true);
       });
 
-      // アニメーションをマッピング (GLB内の名前に合わせて適宜調整)
-      // 一般的なGLBは0: idle, 1: walk, 2: run など
+      // GLBアニメがあればそれを使う、なければプロシージャルアニメで動かす
       if (animGroups && animGroups.length > 0) {
         animations.idle = animGroups[0];
-        animations.walk = animGroups[1] || animGroups[0]; // なければidleを代用
-        
-        // 全て停止してからidleを開始
+        animations.walk = animGroups[1] || animGroups[0];
         animGroups.forEach(ag => ag.stop());
         animations.idle.play(true);
+        currentAnim = "idle";
+        console.log("GLBアニメ使用:", animGroups.map(a=>a.name));
+      } else {
+        // ボーンなしGLB → プロシージャルアニメで対応
+        console.log("GLBアニメなし → プロシージャルアニメで動作");
         currentAnim = "idle";
       }
 
@@ -842,72 +844,86 @@ function updatePlayer(dt) {
   if (!gameReady || !playerRoot) return;
 
   const speed = 5.5;
-  const camY = camera.alpha;
-  const forward = new BABYLON.Vector3(-Math.sin(camY), 0, -Math.cos(camY));
-  const right = new BABYLON.Vector3(Math.cos(camY), 0, -Math.sin(camY));
 
-  let move = BABYLON.Vector3.Zero();
+  // ★修正: camera.alpha(水平角)のみでforward/rightを計算
+  //   alpha はカメラがターゲットの「どの方位から見ているか」
+  //   プレイヤーから見た "前" = カメラが来ている方向の逆
+  const a = camera.alpha;
+  // カメラ位置 = target + r*(sin(beta)*sin(alpha), cos(beta), sin(beta)*cos(alpha)) の逆方向が前
+  // → 水平面だけ使うので beta を消去: forward = (-sin(alpha), 0, -cos(alpha))
+  const forward = new BABYLON.Vector3(-Math.sin(a), 0, -Math.cos(a));
+  // right = forward を Y軸 +90度回転
+  const right   = new BABYLON.Vector3( Math.cos(a), 0, -Math.sin(a));
+
+  let move   = BABYLON.Vector3.Zero();
   let moving = false;
 
   // 1. キーボード
-  if (keys['w']||keys['arrowup'])    { move.addInPlace(forward); moving=true; }
-  if (keys['s']||keys['arrowdown'])  { move.addInPlace(forward.scale(-1)); moving=true; }
-  if (keys['a']||keys['arrowleft'])  { move.addInPlace(right.scale(-1)); moving=true; }
-  if (keys['d']||keys['arrowright']) { move.addInPlace(right); moving=true; }
+  if (keys['w'] || keys['arrowup'])    { move.addInPlace(forward);          moving = true; }
+  if (keys['s'] || keys['arrowdown'])  { move.addInPlace(forward.scale(-1)); moving = true; }
+  if (keys['a'] || keys['arrowleft'])  { move.addInPlace(right.scale(-1));  moving = true; }
+  if (keys['d'] || keys['arrowright']) { move.addInPlace(right);            moving = true; }
 
-  // 2. ジョイスティック (遊びを考慮)
-  if (joystickActive && (Math.abs(joystickVector.x) > 0.1 || Math.abs(joystickVector.y) > 0.1)) {
-    // 前後 (y) と 左右 (x) をカメラ座標系に変換
-    // スティックの y軸は上がマイナスなので反転
-    const joyMove = forward.scale(-joystickVector.y).add(right.scale(joystickVector.x));
-    move.addInPlace(joyMove);
+  // 2. ジョイスティック
+  //   joystickVector.y が -1 = スティック上 = 前進
+  if (joystickActive && (Math.abs(joystickVector.x) > 0.08 || Math.abs(joystickVector.y) > 0.08)) {
+    move.addInPlace(forward.scale(-joystickVector.y));
+    move.addInPlace(right.scale(joystickVector.x));
     moving = true;
   }
 
-  if (moving && move.length() > 0) {
+  if (moving && move.length() > 0.001) {
     move.normalize().scaleInPlace(speed * dt);
     playerRoot.position.addInPlace(move);
-    
-    // 島の制限
-    const dist = Math.sqrt(playerRoot.position.x**2 + playerRoot.position.z**2);
-    if (dist > 37) {
-      playerRoot.position.x *= 37/dist;
-      playerRoot.position.z *= 37/dist;
+
+    // 島の範囲制限
+    const dist2 = playerRoot.position.x**2 + playerRoot.position.z**2;
+    if (dist2 > 37**2) {
+      const d = Math.sqrt(dist2);
+      playerRoot.position.x *= 37 / d;
+      playerRoot.position.z *= 37 / d;
     }
 
-    // 進行方向を向く
-    const targetAngle = Math.atan2(move.x, move.z);
-    playerRoot.rotation.y = targetAngle;
+    // 進行方向を向く (Y軸回転)
+    playerRoot.rotation.y = Math.atan2(move.x, move.z);
 
-    // 歩きアニメーションに切り替え
-    if (animations.walk && currentAnim !== "walk") {
-      animations.idle.stop();
-      animations.walk.play(true);
-      currentAnim = "walk";
-    }
+    // プロシージャル歩行アニメ
+    walkTime += dt;
+    applyWalkAnim(walkTime, true);
+    currentAnim = "walk";
   } else {
-    // 静止アニメーションに切り替え
-    if (animations.idle && currentAnim !== "idle") {
-      animations.walk.stop();
-      animations.idle.play(true);
-      currentAnim = "idle";
-    }
+    // 静止アニメ (わずかに揺れる)
+    applyWalkAnim(walkTime, false);
+    currentAnim = "idle";
   }
 
-  // フォールバック用のぴょこぴょこ運動
-  if (!animations.idle) {
-    if (moving) {
-      walkTime += dt;
-      playerRoot.position.y = Math.abs(Math.sin(walkTime * 8)) * 0.06;
-    } else {
-      playerRoot.position.y = 0;
-    }
-  }
-
-  camera.target = playerRoot.position.clone().add(new BABYLON.Vector3(0,1,0));
+  camera.target = playerRoot.position.clone().add(new BABYLON.Vector3(0, 1, 0));
 }
 
-let walkTime = 0; // フォールバック用
+let walkTime = 0;
+
+// ============================================================
+//  プロシージャル歩行アニメ
+//  GLBにボーン・アニメがない場合でもメッシュ全体を揺らしてリズムを表現
+// ============================================================
+function applyWalkAnim(t, isWalking) {
+  if (!playerRoot) return;
+  if (isWalking) {
+    // 上下バウンス
+    playerRoot.position.y = Math.abs(Math.sin(t * 9)) * 0.07;
+    // 左右ロール (体が揺れる感じ)
+    if (playerMesh) playerMesh.rotation.z = Math.sin(t * 9) * 0.06;
+    // 前後ピッチ (わずかに前傾)
+    if (playerMesh) playerMesh.rotation.x = 0.04 + Math.sin(t * 4.5) * 0.02;
+  } else {
+    // 静止: ゆっくり呼吸
+    playerRoot.position.y = Math.sin(t * 1.8) * 0.015;
+    if (playerMesh) {
+      playerMesh.rotation.z = Math.sin(t * 1.8) * 0.018;
+      playerMesh.rotation.x = 0;
+    }
+  }
+}
 
 function updateNPCs(dt, t) {
   npcs.forEach(npc => {
