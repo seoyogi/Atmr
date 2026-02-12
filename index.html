@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>🌿 あつまれ！どうぶつの森</title>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
@@ -253,11 +253,33 @@
     backdrop-filter: blur(4px);
   }
   #minimap canvas { width: 100%; height: 100%; }
+
+  /* ========== 仮想スティック ========== */
+  #joystick-container {
+    position: fixed; bottom: 40px; left: 40px;
+    width: 120px; height: 120px;
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 50%;
+    z-index: 500;
+    display: none;
+    touch-action: none;
+    backdrop-filter: blur(4px);
+  }
+  #joystick-knob {
+    position: absolute; top: 50%; left: 50%;
+    width: 50px; height: 50px;
+    background: var(--white-glass);
+    border: 3px solid var(--green-light);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: var(--shadow);
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
 
-<!-- タイトル -->
 <div id="title-screen">
   <div class="title-deco">🌸🌳🦋🌻🍎</div>
   <h1 class="title-main">あつまれ！<br>どうぶつの森</h1>
@@ -266,16 +288,13 @@
   <div class="title-grass">🌿🌱🌿🌾🌿🌱🌿🌾🌿🌱🌿</div>
 </div>
 
-<!-- ローディング -->
 <div id="loading">
   <div class="loader-ring"></div>
   <span>しまを準備中... 🌴</span>
 </div>
 
-<!-- Babylon.jsキャンバス -->
 <canvas id="renderCanvas"></canvas>
 
-<!-- HUD -->
 <div id="hud">
   <div id="topbar">
     <span id="island-name">🌴 ふわふわしま</span>
@@ -299,16 +318,18 @@
   </div>
   <div id="guide">
     <b>🎮 操作</b><br>
-    WASD / 矢印 → 移動<br>
+    スティック / WASD → 移動<br>
     マウスドラッグ → 視点<br>
-    スクロール → ズーム<br>
     <b>E / クリック</b> → アクション
   </div>
   <div id="minimap"><canvas id="mm-canvas" width="88" height="88"></canvas></div>
   <div id="msg"></div>
+
+  <div id="joystick-container">
+    <div id="joystick-knob"></div>
+  </div>
 </div>
 
-<!-- Babylon.js core -->
 <script src="https://cdn.babylonjs.com/babylon.js"></script>
 <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
 
@@ -324,6 +345,10 @@ let interactables = [];
 let npcs = [];
 let msgTimer = null;
 let gameReady = false;
+
+// ジョイスティック状態
+let joystickActive = false;
+let joystickVector = { x: 0, y: 0 };
 
 // ============================================================
 //  スタート
@@ -344,24 +369,19 @@ function initBabylon() {
   engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
   scene  = new BABYLON.Scene(engine);
 
-  // 背景色（空）
   scene.clearColor = new BABYLON.Color4(0.529, 0.808, 0.922, 1);
-
-  // フォグ
   scene.fogMode    = BABYLON.Scene.FOGMODE_EXP2;
   scene.fogDensity = 0.012;
   scene.fogColor   = new BABYLON.Color3(0.529, 0.808, 0.922);
 
-  // ========== カメラ ==========
   camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3.5, 14, BABYLON.Vector3.Zero(), scene);
   camera.lowerRadiusLimit = 4;
   camera.upperRadiusLimit = 28;
   camera.upperBetaLimit   = Math.PI / 2.1;
   camera.lowerBetaLimit   = 0.1;
   camera.attachControl(canvas, true);
-  camera.panningSensibility = 0; // パン無効（キャラ追従するため）
+  camera.panningSensibility = 0;
 
-  // ========== 光源 ==========
   const sun = new BABYLON.DirectionalLight("sun", new BABYLON.Vector3(-1, -2, -1), scene);
   sun.intensity = 1.1;
   sun.diffuse   = new BABYLON.Color3(1, 0.97, 0.85);
@@ -370,20 +390,14 @@ function initBabylon() {
   ambient.intensity   = 0.55;
   ambient.groundColor = new BABYLON.Color3(0.4, 0.7, 0.35);
 
-  // シャドウ
   const shadowGen = new BABYLON.ShadowGenerator(1024, sun);
   shadowGen.useBlurExponentialShadowMap = true;
 
-  // ========== 島 ==========
   buildIsland(scene, shadowGen);
-
-  // ========== プレイヤー ==========
   loadPlayer(scene, shadowGen);
-
-  // ========== キー入力 ==========
   setupInput(scene, canvas);
+  setupJoystick();
 
-  // ========== ゲームループ ==========
   let t = 0;
   engine.runRenderLoop(() => {
     const dt = engine.getDeltaTime() / 1000;
@@ -411,26 +425,22 @@ function buildIsland(scene, sg) {
     return m;
   };
 
-  // 海
   const sea = BABYLON.MeshBuilder.CreateDisc("sea", { radius: 65, tessellation: 48 }, scene);
   sea.rotation.x = Math.PI / 2;
   sea.position.y = -0.18;
   sea.material   = mat("#3cb5cc");
   sea.material.alpha = 0.92;
 
-  // 砂浜リング
   const beach = BABYLON.MeshBuilder.CreateTorus("beach", { diameter: 78, thickness: 8, tessellation: 48 }, scene);
   beach.scaling.y = 0.04;
   beach.position.y = 0.005;
   beach.material   = mat("#f5e0a0");
 
-  // 地面
   const ground = BABYLON.MeshBuilder.CreateDisc("ground", { radius: 40, tessellation: 48 }, scene);
   ground.rotation.x = Math.PI / 2;
   ground.receiveShadows = true;
   ground.material       = mat("#5aad63");
 
-  // パス（石畳）
   for (let i = 0; i < 10; i++) {
     const p = BABYLON.MeshBuilder.CreateBox("path"+i, { width:1.6, height:0.04, depth:2.6 }, scene);
     const a = (i / 10) * Math.PI * 2;
@@ -439,7 +449,6 @@ function buildIsland(scene, sg) {
     p.material   = mat("#e8d5a0");
   }
 
-  // 木
   const treePos = [
     [-8,-8],[8,-10],[-12,3],[12,5],[-6,12],[7,13],
     [-14,-2],[14,-3],[-3,-15],[4,-16],[0,-12],
@@ -447,44 +456,33 @@ function buildIsland(scene, sg) {
   ];
   treePos.forEach((p,i) => buildTree(p[0],p[1],i,scene,sg));
 
-  // 花
   const flowerPos = [[-4,-4],[4,-5],[-6,6],[6,8],[2,10],[-3,7],[0,-8],[-8,-1],[8,1],[3,-12],[-2,-10]];
   const flowerColors = ["#ff69b4","#ff4444","#ffcc00","#ff88cc","#cc44ff","#ffffff"];
   flowerPos.forEach((p,i) => buildFlower(p[0],p[1],flowerColors[i%flowerColors.length],i,scene,sg));
 
-  // 川
   buildRiver(scene);
 
-  // きのこ
   [[3,2],[-5,4],[7,-3],[-2,9]].forEach((p,i) => buildMushroom(p[0],p[1],i,scene,sg));
 
-  // 家
   buildHouse(0,-20, "#ffdab9", scene, sg);
   buildHouse(-9,-22,"#ffc0cb", scene, sg);
   buildHouse(9,-22, "#c0e8ff", scene, sg);
 
-  // NPC
   buildNPC(-6, 2,"#ffaa88","たぬき", scene, sg);
   buildNPC(5, -5,"#88aaff","りすのこ",scene,sg);
   buildNPC(-3, 8,"#ff88aa","うしこ",  scene,sg);
 }
 
-// ============================================================
-//  木
-// ============================================================
 function buildTree(x, z, seed, scene, sg) {
   const root = new BABYLON.TransformNode("tree_"+seed, scene);
   root.position.set(x, 0, z);
-
   const trunkMat = new BABYLON.StandardMaterial("tm"+seed, scene);
   trunkMat.diffuseColor = BABYLON.Color3.FromHexString("#8B5A2B");
-
   const trunk = BABYLON.MeshBuilder.CreateCylinder("tr"+seed, { diameterTop:0.36, diameterBottom:0.5, height:2.6, tessellation:8 }, scene);
   trunk.position.set(x, 1.3, z);
   trunk.material = trunkMat;
   trunk.receiveShadows = true;
   sg.addShadowCaster(trunk);
-
   const leafColors = ["#2d8a2d","#3aa33a","#4ab54a"];
   [3.6,2.9,2.3].forEach((h,j) => {
     const lm = new BABYLON.StandardMaterial("lm"+seed+j, scene);
@@ -496,8 +494,6 @@ function buildTree(x, z, seed, scene, sg) {
     sg.addShadowCaster(leaf);
     leaf.receiveShadows = true;
   });
-
-  // フルーツ（種に応じて）
   if (seed % 3 === 1) {
     const fc = ["#ff4444","#ff8800","#ffcc00"][seed % 3];
     const fm = new BABYLON.StandardMaterial("fm"+seed, scene);
@@ -508,25 +504,19 @@ function buildTree(x, z, seed, scene, sg) {
       f.material = fm;
     }
   }
-
   root.userData = { type:'tree', hasWood:true, trunk, x, z };
   interactables.push(root);
   return root;
 }
 
-// ============================================================
-//  花
-// ============================================================
 function buildFlower(x, z, color, idx, scene, sg) {
   const root = new BABYLON.TransformNode("flower_"+idx, scene);
   root.position.set(x, 0, z);
-
   const stemM = new BABYLON.StandardMaterial("sm"+idx, scene);
   stemM.diffuseColor = BABYLON.Color3.FromHexString("#4a9e4a");
   const stem = BABYLON.MeshBuilder.CreateCylinder("st"+idx, { diameter:0.08, height:0.5 }, scene);
   stem.position.set(x, 0.25, z);
   stem.material = stemM;
-
   const petalM = new BABYLON.StandardMaterial("pm"+idx, scene);
   petalM.diffuseColor = BABYLON.Color3.FromHexString(color);
   for (let i = 0; i < 5; i++) {
@@ -541,39 +531,26 @@ function buildFlower(x, z, color, idx, scene, sg) {
   const core = BABYLON.MeshBuilder.CreateSphere("co"+idx, { diameter:0.24, segments:4 }, scene);
   core.position.set(x, 0.54, z);
   core.material = coreM;
-
   root.userData = { type:'flower', hasFlower:true, x, z };
   root.metadata  = { visible: true };
   interactables.push(root);
   return root;
 }
 
-// ============================================================
-//  川
-// ============================================================
 function buildRiver(scene) {
   const riverM = new BABYLON.StandardMaterial("riverM", scene);
   riverM.diffuseColor = BABYLON.Color3.FromHexString("#4ab5cc");
   riverM.alpha = 0.85;
-
-  // 蛇行する川をセグメントで表現
   for (let i = 0; i < 18; i++) {
     const t = i / 18;
     const seg = BABYLON.MeshBuilder.CreateCylinder("rs"+i, { diameter:1.8, height:0.15, tessellation:12 }, scene);
-    seg.position.set(
-      Math.sin(t * Math.PI * 2.5) * 3 - 6,
-      0.06,
-      t * 32 - 18
-    );
+    seg.position.set(Math.sin(t * Math.PI * 2.5) * 3 - 6, 0.06, t * 32 - 18);
     seg.material = riverM;
   }
-
-  // 釣りポイント
   const fishPt = new BABYLON.TransformNode("fishpt", scene);
   fishPt.position.set(-6, 0, 0);
   fishPt.userData = { type:'river', hasFish:true };
   interactables.push(fishPt);
-
   const bobM = new BABYLON.StandardMaterial("bobM", scene);
   bobM.diffuseColor = BABYLON.Color3.FromHexString("#4ab5cc");
   bobM.alpha = 0.7;
@@ -582,19 +559,14 @@ function buildRiver(scene) {
   bob.material = bobM;
 }
 
-// ============================================================
-//  きのこ
-// ============================================================
 function buildMushroom(x, z, idx, scene, sg) {
   const root = new BABYLON.TransformNode("mush_"+idx, scene);
   root.position.set(x, 0, z);
-
   const stemM = new BABYLON.StandardMaterial("mustem"+idx, scene);
   stemM.diffuseColor = BABYLON.Color3.FromHexString("#fffacd");
   const stem = BABYLON.MeshBuilder.CreateCylinder("mst"+idx, { diameterTop:0.24, diameterBottom:0.32, height:0.5 }, scene);
   stem.position.set(x, 0.25, z);
   stem.material = stemM;
-
   const capColors = ["#ff4444","#ff8800","#ffcc00","#aa44ff"];
   const capM = new BABYLON.StandardMaterial("mcap"+idx, scene);
   capM.diffuseColor = BABYLON.Color3.FromHexString(capColors[idx % 4]);
@@ -603,7 +575,6 @@ function buildMushroom(x, z, idx, scene, sg) {
   cap.position.set(x, 0.68, z);
   cap.material = capM;
   sg.addShadowCaster(cap);
-
   const dotM = new BABYLON.StandardMaterial("mdot"+idx, scene);
   dotM.diffuseColor = BABYLON.Color3.White();
   for (let i = 0; i < 4; i++) {
@@ -611,15 +582,11 @@ function buildMushroom(x, z, idx, scene, sg) {
     d.position.set(x+Math.cos(i*Math.PI/2)*0.22, 0.76, z+Math.sin(i*Math.PI/2)*0.22);
     d.material = dotM;
   }
-
   root.userData = { type:'mushroom', hasMushroom:true, x, z };
   interactables.push(root);
   return root;
 }
 
-// ============================================================
-//  家
-// ============================================================
 function buildHouse(x, z, wallColor, scene, sg) {
   const wm = new BABYLON.StandardMaterial("wm"+x, scene);
   wm.diffuseColor = BABYLON.Color3.FromHexString(wallColor);
@@ -628,7 +595,6 @@ function buildHouse(x, z, wallColor, scene, sg) {
   wall.material = wm;
   sg.addShadowCaster(wall);
   wall.receiveShadows = true;
-
   const rm = new BABYLON.StandardMaterial("rm"+x, scene);
   rm.diffuseColor = BABYLON.Color3.FromHexString("#8B4513");
   const roof = BABYLON.MeshBuilder.CreateCylinder("roof"+x, { diameterTop:0, diameterBottom:6.4, height:2.2, tessellation:4 }, scene);
@@ -636,13 +602,11 @@ function buildHouse(x, z, wallColor, scene, sg) {
   roof.rotation.y = Math.PI / 4;
   roof.material   = rm;
   sg.addShadowCaster(roof);
-
   const dm = new BABYLON.StandardMaterial("dm"+x, scene);
   dm.diffuseColor = BABYLON.Color3.FromHexString("#8B5A2B");
   const door = BABYLON.MeshBuilder.CreateBox("door"+x, { width:0.9, height:1.6, depth:0.12 }, scene);
   door.position.set(x, 0.8, z+2.16);
   door.material = dm;
-
   const wndm = new BABYLON.StandardMaterial("wndm"+x, scene);
   wndm.diffuseColor = BABYLON.Color3.FromHexString("#87ceeb");
   [-1.3,1.3].forEach(wx => {
@@ -652,26 +616,19 @@ function buildHouse(x, z, wallColor, scene, sg) {
   });
 }
 
-// ============================================================
-//  NPC
-// ============================================================
 function buildNPC(x, z, color, name, scene, sg) {
   const root = new BABYLON.TransformNode("npc_"+name, scene);
   root.position.set(x, 0, z);
-
   const bm = new BABYLON.StandardMaterial("nm_b"+name, scene);
   bm.diffuseColor = BABYLON.Color3.FromHexString(color);
-
   const body = BABYLON.MeshBuilder.CreateCapsule("nb_"+name, { radius:0.35, height:1.4, tessellation:8 }, scene);
   body.position.set(x, 0.85, z);
   body.material = bm;
   sg.addShadowCaster(body);
-
   const head = BABYLON.MeshBuilder.CreateSphere("nh_"+name, { diameter:0.76, segments:8 }, scene);
   head.position.set(x, 1.75, z);
   head.material = bm;
   sg.addShadowCaster(head);
-
   const em = new BABYLON.StandardMaterial("em_"+name, scene);
   em.diffuseColor = BABYLON.Color3.FromHexString("#222222");
   [-0.13,0.13].forEach(ex => {
@@ -679,7 +636,6 @@ function buildNPC(x, z, color, name, scene, sg) {
     eye.position.set(x+ex, 1.8, z+0.32);
     eye.material = em;
   });
-
   const earm = new BABYLON.StandardMaterial("earm_"+name, scene);
   earm.diffuseColor = BABYLON.Color3.FromHexString(color);
   [-0.26,0.26].forEach(ex => {
@@ -688,7 +644,6 @@ function buildNPC(x, z, color, name, scene, sg) {
     ear.position.set(x+ex, 2.08, z);
     ear.material = earm;
   });
-
   root.userData = {
     type:'npc', name,
     walkAngle: Math.random()*Math.PI*2,
@@ -702,21 +657,14 @@ function buildNPC(x, z, color, name, scene, sg) {
   return root;
 }
 
-// ============================================================
-//  プレイヤー読み込み
-// ============================================================
 function loadPlayer(scene, sg) {
   playerRoot = new BABYLON.TransformNode("playerRoot", scene);
   playerRoot.position.set(0, 0, 0);
-
-  // GLBを読み込む（ファイル名のスペースをエンコード）
   BABYLON.SceneLoader.ImportMesh(
     "", "./", "girl%20character%203d%20model.glb", scene,
     (meshes, ps, skeletons, animGroups) => {
       playerMesh = meshes[0];
       playerMesh.parent = playerRoot;
-
-      // サイズ自動調整
       const bbox = playerMesh.getHierarchyBoundingVectors();
       const size = bbox.max.subtract(bbox.min);
       const maxDim = Math.max(size.x, size.y, size.z);
@@ -724,19 +672,15 @@ function loadPlayer(scene, sg) {
         const s = 1.8 / maxDim;
         playerMesh.scaling.set(s, s, s);
       }
-      // 地面に接地
       const bbox2 = playerMesh.getHierarchyBoundingVectors();
       playerMesh.position.y = -bbox2.min.y;
-
       meshes.forEach(m => {
         m.receiveShadows = true;
         sg.addShadowCaster(m, true);
       });
-
       if (animGroups && animGroups.length > 0) {
         animGroups[0].start(true);
       }
-
       finishLoading();
     },
     null,
@@ -751,7 +695,6 @@ function loadPlayer(scene, sg) {
 function buildFallbackPlayer(scene, sg) {
   playerRoot = new BABYLON.TransformNode("playerRoot", scene);
   playerRoot.position.set(0, 0, 0);
-
   const bm = new BABYLON.StandardMaterial("pb", scene);
   bm.diffuseColor = BABYLON.Color3.FromHexString("#ff8fa0");
   const body = BABYLON.MeshBuilder.CreateCapsule("pbody", { radius:0.3, height:1.3, tessellation:8 }, scene);
@@ -759,7 +702,6 @@ function buildFallbackPlayer(scene, sg) {
   body.material = bm;
   body.parent   = playerRoot;
   sg.addShadowCaster(body);
-
   const hm = new BABYLON.StandardMaterial("ph", scene);
   hm.diffuseColor = BABYLON.Color3.FromHexString("#ffcdb4");
   const head = BABYLON.MeshBuilder.CreateSphere("phead", { diameter:0.72, segments:8 }, scene);
@@ -767,7 +709,6 @@ function buildFallbackPlayer(scene, sg) {
   head.material = hm;
   head.parent   = playerRoot;
   sg.addShadowCaster(head);
-
   const hairM = new BABYLON.StandardMaterial("phr", scene);
   hairM.diffuseColor = BABYLON.Color3.FromHexString("#3a2010");
   const hair = BABYLON.MeshBuilder.CreateSphere("phair", { diameter:0.8, segments:8 }, scene);
@@ -775,7 +716,6 @@ function buildFallbackPlayer(scene, sg) {
   hair.position.set(0, 1.96, 0);
   hair.material = hairM;
   hair.parent   = playerRoot;
-
   const em = new BABYLON.StandardMaterial("pem", scene);
   em.diffuseColor = BABYLON.Color3.FromHexString("#3a2020");
   [-0.14,0.14].forEach(ex => {
@@ -783,7 +723,6 @@ function buildFallbackPlayer(scene, sg) {
     eye.position.set(ex, 1.78, 0.31);
     eye.material = em;
     eye.parent   = playerRoot;
-
     const hlM = new BABYLON.StandardMaterial("phl"+ex, scene);
     hlM.diffuseColor = BABYLON.Color3.White();
     const hl = BABYLON.MeshBuilder.CreateSphere("phl"+ex, { diameter:0.04, segments:3 }, scene);
@@ -791,7 +730,6 @@ function buildFallbackPlayer(scene, sg) {
     hl.material = hlM;
     hl.parent   = playerRoot;
   });
-
   const cheekM = new BABYLON.StandardMaterial("pchm", scene);
   cheekM.diffuseColor = BABYLON.Color3.FromHexString("#ffaaaa");
   cheekM.alpha = 0.7;
@@ -802,19 +740,19 @@ function buildFallbackPlayer(scene, sg) {
     ch.material = cheekM;
     ch.parent   = playerRoot;
   });
-
   playerMesh = body;
 }
 
 function finishLoading() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('hud').style.display = 'block';
+  document.getElementById('joystick-container').style.display = 'block';
   gameReady = true;
   showMsg("🌴 ふわふわしまへようこそ！\n好きなことをして過ごそう♪");
 }
 
 // ============================================================
-//  入力
+//  入力設定 (キーボード & ジョイスティック)
 // ============================================================
 const keys = {};
 function setupInput(scene, canvas) {
@@ -822,15 +760,52 @@ function setupInput(scene, canvas) {
     keys[e.key.toLowerCase()] = true;
     if (e.key.toLowerCase() === 'e') tryInteract();
   });
-  window.addEventListener('keyup',   e => keys[e.key.toLowerCase()] = false);
+  window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-  // クリックでインタラクト（カメラ操作でない場合）
   let mdown = {x:0,y:0};
   canvas.addEventListener('pointerdown', e => { mdown={x:e.clientX,y:e.clientY}; });
   canvas.addEventListener('pointerup',   e => {
     const dx = Math.abs(e.clientX-mdown.x), dy=Math.abs(e.clientY-mdown.y);
     if (dx+dy < 8) tryInteract();
   });
+}
+
+function setupJoystick() {
+  const container = document.getElementById('joystick-container');
+  const knob = document.getElementById('joystick-knob');
+  const rect = container.getBoundingClientRect();
+  const centerX = rect.width / 2;
+  const centerY = rect.height / 2;
+  const maxRadius = rect.width / 2;
+
+  const handleMove = (e) => {
+    if (!joystickActive) return;
+    const touch = e.touches ? e.touches[0] : e;
+    let dx = touch.clientX - (container.offsetLeft + centerX);
+    let dy = touch.clientY - (container.offsetTop + centerY);
+    
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > maxRadius) {
+      dx *= maxRadius / dist;
+      dy *= maxRadius / dist;
+    }
+    
+    knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    joystickVector = { x: dx / maxRadius, y: dy / maxRadius };
+  };
+
+  const handleEnd = () => {
+    joystickActive = false;
+    knob.style.transform = `translate(-50%, -50%)`;
+    joystickVector = { x: 0, y: 0 };
+  };
+
+  container.addEventListener('pointerdown', (e) => {
+    joystickActive = true;
+    handleMove(e);
+  });
+  window.addEventListener('pointermove', handleMove);
+  window.addEventListener('pointerup', handleEnd);
 }
 
 // ============================================================
@@ -848,39 +823,37 @@ function updatePlayer(dt) {
   let move = BABYLON.Vector3.Zero();
   let moving = false;
 
+  // キーボード入力
   if (keys['w']||keys['arrowup'])    { move.addInPlace(forward); moving=true; }
   if (keys['s']||keys['arrowdown'])  { move.addInPlace(forward.scale(-1)); moving=true; }
   if (keys['a']||keys['arrowleft'])  { move.addInPlace(right.scale(-1)); moving=true; }
   if (keys['d']||keys['arrowright']) { move.addInPlace(right); moving=true; }
 
+  // ジョイスティック入力
+  if (joystickActive && (Math.abs(joystickVector.x) > 0.1 || Math.abs(joystickVector.y) > 0.1)) {
+    const joyMove = forward.scale(-joystickVector.y).add(right.scale(joystickVector.x));
+    move.addInPlace(joyMove);
+    moving = true;
+  }
+
   if (moving && move.length() > 0) {
     move.normalize().scaleInPlace(speed * dt);
     playerRoot.position.addInPlace(move);
-
-    // 島の範囲制限
     const dist = Math.sqrt(playerRoot.position.x**2 + playerRoot.position.z**2);
     if (dist > 37) {
       playerRoot.position.x *= 37/dist;
       playerRoot.position.z *= 37/dist;
     }
-
-    // 向き
     playerRoot.rotation.y = Math.atan2(move.x, move.z);
-
     walkTime += dt;
     playerRoot.position.y = Math.abs(Math.sin(walkTime * 8)) * 0.06;
   } else {
     walkTime += dt;
     playerRoot.position.y = Math.abs(Math.sin(walkTime * 1.5)) * 0.02;
   }
-
-  // カメラをキャラに追従
   camera.target = playerRoot.position.clone().add(new BABYLON.Vector3(0,1,0));
 }
 
-// ============================================================
-//  NPC更新
-// ============================================================
 function updateNPCs(dt, t) {
   npcs.forEach(npc => {
     const ud = npc.userData;
@@ -890,14 +863,10 @@ function updateNPCs(dt, t) {
     npc.position.x += (tx - npc.position.x) * 0.05;
     npc.position.z += (tz - npc.position.z) * 0.05;
     npc.position.y  = Math.abs(Math.sin(t*3.5+ud.walkAngle)) * 0.04;
-
-    // 向き
     const dx = tx - npc.position.x, dz = tz - npc.position.z;
     if (Math.abs(dx)+Math.abs(dz) > 0.01) {
       npc.rotation.y = Math.atan2(dx, dz);
     }
-
-    // 体メッシュを追従
     if (ud.bodyMesh) {
       ud.bodyMesh.position.set(npc.position.x, npc.position.y+0.85, npc.position.z);
       ud.headMesh.position.set(npc.position.x, npc.position.y+1.75, npc.position.z);
@@ -905,12 +874,7 @@ function updateNPCs(dt, t) {
   });
 }
 
-// ============================================================
-//  植物揺れ
-// ============================================================
-const flowerMeshes = [];
 function wigglePlants(t) {
-  // 実装はシンプルに：TransformNodeを微妙に揺らす
   interactables.forEach(obj => {
     if (obj.userData && obj.userData.type === 'flower' && obj.metadata?.visible) {
       obj.rotation.z = Math.sin(t * 2 + obj.position.x) * 0.06;
@@ -918,15 +882,11 @@ function wigglePlants(t) {
   });
 }
 
-// ============================================================
-//  パーティクル（スプライト）
-// ============================================================
 let particles = [];
 function spawnParticles(x, y, z, hexColor) {
   const m = new BABYLON.StandardMaterial("pm"+Date.now(), scene);
   m.diffuseColor = BABYLON.Color3.FromHexString(hexColor);
   m.emissiveColor = BABYLON.Color3.FromHexString(hexColor);
-
   for (let i = 0; i < 10; i++) {
     const p = BABYLON.MeshBuilder.CreateSphere("par"+Date.now()+i, { diameter:0.12, segments:3 }, scene);
     p.material = m;
@@ -938,6 +898,7 @@ function spawnParticles(x, y, z, hexColor) {
     particles.push(p);
   }
 }
+
 function updateParticles(dt) {
   for (let i = particles.length-1; i >= 0; i--) {
     const p = particles[i];
@@ -953,55 +914,43 @@ function updateParticles(dt) {
   }
 }
 
-// ============================================================
-//  インタラクション
-// ============================================================
 function tryInteract() {
   if (!gameReady || !playerRoot) return;
   let nearest = null, nearDist = 3.8;
-
   interactables.forEach(obj => {
     const ox = obj.position?.x ?? obj.userData?.x ?? 0;
     const oz = obj.position?.z ?? obj.userData?.z ?? 0;
     const d  = Math.sqrt((playerRoot.position.x-ox)**2 + (playerRoot.position.z-oz)**2);
     if (d < nearDist) { nearest=obj; nearDist=d; }
   });
-
   if (!nearest) { showMsg("近くに何もないよ〜\n歩いて探してみよう！🌿"); return; }
-
   const ud = nearest.userData;
   if (!ud) return;
-
   if (ud.type === 'tree' && ud.hasWood) {
     if (currentTool === 'axe') {
       inv.wood++; bellCount += 150; ud.hasWood = false;
       spawnParticles(nearest.position.x, 2, nearest.position.z, "#c8a060");
       updateUI(); showMsg("🪓 木材をゲット！\n+150ベル 💰");
     } else showMsg("🪓 おのを選んでから\n木を切ろう！");
-
   } else if (ud.type === 'river' && ud.hasFish) {
     if (currentTool === 'fish') {
       inv.fish++; bellCount += 300;
       spawnParticles(nearest.position.x, 0.5, nearest.position.z, "#4ab5cc");
       updateUI(); showMsg("🐟 さかなを釣った！\n+300ベル 💰");
     } else showMsg("🎣 つりざおを選んでから\n川で釣りをしよう！");
-
   } else if (ud.type === 'flower' && ud.hasFlower) {
     inv.flower++; bellCount += 80; ud.hasFlower = false;
     nearest.metadata = { visible: false };
-    // 花メッシュを非表示
     scene.meshes.filter(m => m.name.startsWith("pt"+interactables.indexOf(nearest)) ||
       m.name.startsWith("co"+interactables.indexOf(nearest)) ||
       m.name.startsWith("st"+interactables.indexOf(nearest))
     ).forEach(m => m.isVisible = false);
     spawnParticles(nearest.position.x, 0.5, nearest.position.z, "#ff69b4");
     updateUI(); showMsg("🌸 はなを摘んだ！\n+80ベル 💰");
-
   } else if (ud.type === 'mushroom' && ud.hasMushroom) {
     inv.mushroom++; bellCount += 200; ud.hasMushroom = false;
     spawnParticles(nearest.position.x, 0.5, nearest.position.z, "#ff4444");
     updateUI(); showMsg("🍄 きのこをとった！\n+200ベル 💰");
-
   } else if (ud.type === 'npc') {
     const msgs = [
       `「こんにちは！\n${ud.name}だよ！✨」`,
@@ -1016,39 +965,26 @@ function tryInteract() {
   }
 }
 
-// ============================================================
-//  ミニマップ
-// ============================================================
 function updateMinimap() {
   if (!playerRoot) return;
   const canvas = document.getElementById('mm-canvas');
   const ctx    = canvas.getContext('2d');
   const W=88, H=88, cx=44, cy=44, scale=1.8;
-
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle='rgba(80,160,80,0.5)'; ctx.beginPath(); ctx.arc(cx,cy,42,0,Math.PI*2); ctx.fill();
-
-  // 木（緑の点）
   ctx.fillStyle='#2d6a2d';
   interactables.filter(o=>o.userData?.type==='tree').forEach(o=>{
     ctx.beginPath(); ctx.arc(cx+o.position.x/scale, cy+o.position.z/scale, 3, 0, Math.PI*2); ctx.fill();
   });
-
-  // NPC（オレンジ）
   ctx.fillStyle='#ff8800';
   npcs.forEach(n=>{
     ctx.beginPath(); ctx.arc(cx+n.position.x/scale, cy+n.position.z/scale, 3, 0, Math.PI*2); ctx.fill();
   });
-
-  // プレイヤー（白）
   ctx.fillStyle='#fff';
   ctx.beginPath(); ctx.arc(cx+playerRoot.position.x/scale, cy+playerRoot.position.z/scale, 4, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle='#3a7d44'; ctx.lineWidth=1.5; ctx.stroke();
 }
 
-// ============================================================
-//  UI
-// ============================================================
 function setTool(t) {
   currentTool = t;
   document.querySelectorAll('.tbtn').forEach(b=>b.classList.remove('active'));
