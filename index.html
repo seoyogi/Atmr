@@ -1,109 +1,1312 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-<meta charset="utf-8"/>
-<title>Yuta Island - AFrame Version</title>
-<script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌿 あつまれ！どうぶつの森 風ゲーム</title>
 <style>
-  body { margin: 0; }
-  #viewButton {
-    position: absolute;
-    right: 20px;
-    bottom: 20px;
-    padding: 10px;
-    font-size: 16px;
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: 'Zen Maru Gothic', 'M PLUS Rounded 1c', sans-serif;
+    background: #87CEEB;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    user-select: none;
+  }
+
+  #root {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  /* HUD */
+  #hud {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
     z-index: 10;
   }
+
+  /* トップバー */
+  #topbar {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,0.88);
+    border: 3px solid #a8d5a2;
+    border-radius: 999px;
+    padding: 6px 20px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.8);
+    pointer-events: all;
+  }
+
+  #island-name {
+    font-size: 18px;
+    font-weight: 900;
+    color: #3a7d44;
+    text-shadow: 1px 1px 0 rgba(255,255,255,0.8);
+  }
+
+  #bell-display {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #c47f00;
+  }
+
+  /* 時計 */
+  #clock {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: rgba(255,255,255,0.88);
+    border: 3px solid #a8d5a2;
+    border-radius: 16px;
+    padding: 6px 14px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #3a7d44;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+
+  /* ツールバー */
+  #toolbar {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    pointer-events: all;
+  }
+
+  .tool-btn {
+    width: 64px;
+    height: 64px;
+    background: rgba(255,255,255,0.92);
+    border: 3px solid #a8d5a2;
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15), 0 2px 0 #6bb56a;
+    font-size: 26px;
+    gap: 2px;
+  }
+
+  .tool-btn:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2), 0 2px 0 #6bb56a;
+    background: #f0fef0;
+  }
+
+  .tool-btn:active {
+    transform: translateY(0px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15), 0 1px 0 #6bb56a;
+  }
+
+  .tool-btn.active {
+    background: #d4f0d4;
+    border-color: #3a7d44;
+    transform: translateY(-2px);
+  }
+
+  .tool-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: #3a7d44;
+    line-height: 1;
+  }
+
+  /* 操作ガイド */
+  #controls-guide {
+    position: absolute;
+    bottom: 100px;
+    left: 16px;
+    background: rgba(255,255,255,0.82);
+    border: 2px solid #a8d5a2;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 11px;
+    color: #3a7d44;
+    font-weight: 600;
+    line-height: 1.8;
+    pointer-events: all;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  /* インベントリ */
+  #inventory {
+    position: absolute;
+    top: 70px;
+    right: 16px;
+    background: rgba(255,255,255,0.88);
+    border: 3px solid #a8d5a2;
+    border-radius: 16px;
+    padding: 12px;
+    pointer-events: all;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    min-width: 120px;
+  }
+
+  #inventory h3 {
+    font-size: 12px;
+    font-weight: 700;
+    color: #3a7d44;
+    margin-bottom: 8px;
+    text-align: center;
+    border-bottom: 2px solid #a8d5a2;
+    padding-bottom: 5px;
+  }
+
+  .inv-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #555;
+    font-weight: 600;
+    padding: 2px 0;
+  }
+
+  /* アクションメッセージ */
+  #action-msg {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255,255,255,0.95);
+    border: 3px solid #a8d5a2;
+    border-radius: 20px;
+    padding: 16px 28px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #3a7d44;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    display: none;
+    z-index: 100;
+    pointer-events: none;
+    animation: msgPop 0.3s ease-out;
+  }
+
+  @keyframes msgPop {
+    from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+    to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+
+  /* 天気パネル */
+  #weather-panel {
+    position: absolute;
+    top: 70px;
+    left: 16px;
+    background: rgba(255,255,255,0.88);
+    border: 3px solid #a8d5a2;
+    border-radius: 16px;
+    padding: 10px 14px;
+    pointer-events: all;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    font-size: 13px;
+    color: #3a7d44;
+    font-weight: 700;
+  }
+
+  /* タイトル画面 */
+  #title-screen {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(180deg, #7dd4f0 0%, #a8e6cf 50%, #68b36b 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeTitle 0.5s ease;
+  }
+
+  @keyframes fadeTitle {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  #title-screen.hidden {
+    animation: fadeOut 0.8s ease forwards;
+  }
+
+  @keyframes fadeOut {
+    to { opacity: 0; pointer-events: none; }
+  }
+
+  .title-logo {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .title-logo h1 {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 3px 3px 0 #3a7d44, -1px -1px 0 #3a7d44, 1px -1px 0 #3a7d44;
+    letter-spacing: 2px;
+    line-height: 1.3;
+  }
+
+  .title-logo p {
+    font-size: 16px;
+    color: #fff;
+    margin-top: 8px;
+    font-weight: 600;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.3);
+  }
+
+  .start-btn {
+    background: #fff;
+    border: 4px solid #3a7d44;
+    border-radius: 999px;
+    padding: 14px 48px;
+    font-size: 20px;
+    font-weight: 900;
+    color: #3a7d44;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 6px 0 #3a7d44, 0 8px 20px rgba(0,0,0,0.2);
+    font-family: inherit;
+    animation: bounce 1.5s ease-in-out infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  .start-btn:hover {
+    background: #f0fef0;
+    box-shadow: 0 4px 0 #3a7d44, 0 6px 16px rgba(0,0,0,0.2);
+    transform: translateY(2px);
+    animation: none;
+  }
+
+  .grass-deco {
+    display: flex;
+    gap: 8px;
+    font-size: 40px;
+    margin: 20px 0;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  canvas { display: block; }
+
+  #loading {
+    position: fixed;
+    inset: 0;
+    background: #87CEEB;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    font-size: 18px;
+    font-weight: 700;
+    color: #3a7d44;
+  }
+
+  .spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #a8d5a2;
+    border-top-color: #3a7d44;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 16px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
 </style>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&display=swap" rel="stylesheet">
 </head>
 <body>
 
-<button id="viewButton">視点切替</button>
+<!-- タイトル画面 -->
+<div id="title-screen">
+  <div class="title-logo">
+    <h1>🌿 あつまれ！<br>どうぶつの森</h1>
+    <p>～ みんなのしまへ ようこそ ～</p>
+  </div>
+  <div class="grass-deco">🌸 🌳 🦋 🌻 🍎</div>
+  <button class="start-btn" onclick="startGame()">🎮 はじめる！</button>
+</div>
 
-<a-scene physics="gravity: -9.8">
+<!-- ローディング -->
+<div id="loading" style="display:none">
+  <div class="spinner"></div>
+  しまを準備中...
+</div>
 
-  <!-- 空 -->
-  <a-sky color="#87CEEB"></a-sky>
+<!-- 3Dキャンバス -->
+<div id="root"></div>
 
-  <!-- 島 -->
-  <a-cylinder position="0 0 0" radius="30" height="0.5" color="#3cb043" static-body></a-cylinder>
+<!-- HUD -->
+<div id="hud" style="display:none">
+  <div id="topbar">
+    <span id="island-name">🌴 ふわふわしま</span>
+    <div id="bell-display">🔔 <span id="bell-count">12,500</span> ベル</div>
+  </div>
 
-  <!-- 砂浜 -->
-  <a-cylinder position="0 -0.2 0" radius="40" height="0.4" color="#e8d8a8" static-body></a-cylinder>
+  <div id="clock">🕐 <span id="time-display">--:--</span></div>
 
-  <!-- 海 -->
-  <a-cylinder position="0 -0.5 0" radius="100" height="0.5" color="#1e4f9c" static-body></a-cylinder>
+  <div id="weather-panel">
+    ☀️ はれ<br>
+    <span style="font-size:10px; font-weight:500; color:#666">気温: 22°C</span>
+  </div>
 
-  <!-- プレイヤー -->
-  <a-entity id="player" position="0 1.2 0" dynamic-body>
-    <a-entity id="character" gltf-model="girl character 3d model.glb" scale="1.5 1.5 1.5"></a-entity>
-    <a-entity id="camera" camera position="0 3 6" look-controls="enabled:false"></a-entity>
-  </a-entity>
+  <div id="inventory">
+    <h3>🎒 もちもの</h3>
+    <div class="inv-item">🪓 <span id="axe-count">0</span> 木材</div>
+    <div class="inv-item">🐟 <span id="fish-count">0</span> さかな</div>
+    <div class="inv-item">🌸 <span id="flower-count">0</span> はな</div>
+    <div class="inv-item">🍄 <span id="mushroom-count">0</span> きのこ</div>
+  </div>
 
-</a-scene>
+  <div id="controls-guide">
+    <b>🎮 操作方法</b><br>
+    WASD / 矢印 → 移動<br>
+    マウスドラッグ → 視点回転<br>
+    スクロール → ズーム<br>
+    ツールボタン → アクション<br>
+    <b>E / クリック</b> → インタラクト
+  </div>
 
+  <div id="toolbar">
+    <div class="tool-btn active" id="btn-walk" onclick="setTool('walk')">
+      🏃 <span class="tool-label">歩く</span>
+    </div>
+    <div class="tool-btn" id="btn-axe" onclick="setTool('axe')">
+      🪓 <span class="tool-label">おの</span>
+    </div>
+    <div class="tool-btn" id="btn-fish" onclick="setTool('fish')">
+      🎣 <span class="tool-label">つり</span>
+    </div>
+    <div class="tool-btn" id="btn-flower" onclick="setTool('flower')">
+      🌸 <span class="tool-label">はなつみ</span>
+    </div>
+    <div class="tool-btn" id="btn-chat" onclick="setTool('chat')">
+      💬 <span class="tool-label">はなす</span>
+    </div>
+  </div>
+
+  <div id="action-msg"></div>
+</div>
+
+<!-- Three.js + React Three Fiber (UMD builds via CDN) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-let mode = 0;
-document.getElementById("viewButton").onclick = () => {
-  mode = (mode + 1) % 2;
-  const cam = document.getElementById("camera");
-  cam.setAttribute("position", mode === 0 ? "0 3 6" : "0 3 -6");
-};
+// ===== ゲームエンジン（Pure Three.js - 高パフォーマンス） =====
+const clock = new THREE.Clock();
+let scene, camera, renderer, mixer;
+let player = null;
+let playerBody = null;
+let moveDir = { x: 0, z: 0 };
+let currentTool = 'walk';
+let gameStarted = false;
+let bells = 12500;
+let inventory = { wood: 0, fish: 0, flower: 0, mushroom: 0 };
+let interactables = [];
+let npcs = [];
+let particles = [];
+let cameraAngle = 0;
+let cameraDistance = 12;
+let cameraPitch = 0.6;
+let isDragging = false;
+let lastMouse = { x: 0, y: 0 };
 
-const player = document.getElementById("player");
-const camera = document.getElementById("camera");
+// GLBモデルローダー
+let GLTFLoader;
 
-let lastX = null;
-document.addEventListener("pointerdown", e => { lastX = e.clientX; });
-document.addEventListener("pointermove", e => {
-  if (lastX !== null) {
-    const deltaX = e.clientX - lastX;
-    player.object3D.rotation.y -= deltaX * 0.005; // 横回転のみ
-    lastX = e.clientX;
+function loadGLTFLoaderScript() {
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    // inline GLTFLoader (minimal version for loading)
+    resolve();
+  });
+}
+
+// ========== ゲーム開始 ==========
+function startGame() {
+  document.getElementById('title-screen').classList.add('hidden');
+  document.getElementById('loading').style.display = 'flex';
+  
+  setTimeout(() => {
+    initGame();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('hud').style.display = 'block';
+    gameStarted = true;
+    updateClock();
+    setInterval(updateClock, 60000);
+    animate();
+  }, 1200);
+}
+
+// ========== シーン初期化 ==========
+function initGame() {
+  // レンダラー
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x87CEEB);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  document.getElementById('root').appendChild(renderer.domElement);
+
+  // シーン
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87CEEB);
+  scene.fog = new THREE.FogExp2(0x87CEEB, 0.018);
+
+  // カメラ
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+  updateCamera();
+
+  // 光源
+  const ambientLight = new THREE.AmbientLight(0xfff5e0, 0.7);
+  scene.add(ambientLight);
+  
+  const sunLight = new THREE.DirectionalLight(0xfff8d0, 1.2);
+  sunLight.position.set(20, 40, 20);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.shadow.camera.near = 0.1;
+  sunLight.shadow.camera.far = 100;
+  sunLight.shadow.camera.left = -40;
+  sunLight.shadow.camera.right = 40;
+  sunLight.shadow.camera.top = 40;
+  sunLight.shadow.camera.bottom = -40;
+  scene.add(sunLight);
+
+  const fillLight = new THREE.HemisphereLight(0x87CEEB, 0x68b36b, 0.5);
+  scene.add(fillLight);
+
+  // 島の地面
+  createIsland();
+  
+  // オブジェクト配置
+  createTrees();
+  createFlowers();
+  createRiver();
+  createHouses();
+  createMushrooms();
+  createNPCs();
+  
+  // プレイヤー（GLBモデル読み込み）
+  loadPlayerModel();
+
+  // イベント
+  window.addEventListener('resize', onResize);
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  renderer.domElement.addEventListener('mousedown', onMouseDown);
+  renderer.domElement.addEventListener('mousemove', onMouseMove);
+  renderer.domElement.addEventListener('mouseup', onMouseUp);
+  renderer.domElement.addEventListener('wheel', onWheel);
+  renderer.domElement.addEventListener('click', onCanvasClick);
+}
+
+// ========== 島の作成 ==========
+function createIsland() {
+  // メイン地面
+  const groundGeo = new THREE.CircleGeometry(40, 64);
+  const groundMat = new THREE.MeshLambertMaterial({ color: 0x68b36b });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // 水面（海）
+  const seaGeo = new THREE.CircleGeometry(60, 64);
+  const seaMat = new THREE.MeshLambertMaterial({ color: 0x4ab5cc, transparent: true, opacity: 0.9 });
+  const sea = new THREE.Mesh(seaGeo, seaMat);
+  sea.rotation.x = -Math.PI / 2;
+  sea.position.y = -0.2;
+  scene.add(sea);
+
+  // 砂浜
+  const beachGeo = new THREE.RingGeometry(36, 42, 64);
+  const beachMat = new THREE.MeshLambertMaterial({ color: 0xf5e0a0 });
+  const beach = new THREE.Mesh(beachGeo, beachMat);
+  beach.rotation.x = -Math.PI / 2;
+  beach.position.y = 0.01;
+  scene.add(beach);
+
+  // パス（小道）
+  for (let i = 0; i < 8; i++) {
+    const pathGeo = new THREE.BoxGeometry(1.5, 0.02, 2.5);
+    const pathMat = new THREE.MeshLambertMaterial({ color: 0xe8d5a0 });
+    const path = new THREE.Mesh(pathGeo, pathMat);
+    path.position.set(Math.sin(i * Math.PI / 4) * 5, 0.01, Math.cos(i * Math.PI / 4) * 5);
+    path.rotation.y = i * Math.PI / 4;
+    scene.add(path);
   }
-});
-document.addEventListener("pointerup", () => { lastX = null; });
 
-// キーボード＆仮想スティック風移動
-let moveX = 0, moveZ = 0;
-document.addEventListener("keydown", e => {
-  if (e.key==="w"||e.key==="ArrowUp") moveZ = -0.1;
-  if (e.key==="s"||e.key==="ArrowDown") moveZ = 0.1;
-  if (e.key==="a"||e.key==="ArrowLeft") moveX = -0.1;
-  if (e.key==="d"||e.key==="ArrowRight") moveX = 0.1;
-});
-document.addEventListener("keyup", e => { moveX=0; moveZ=0; });
+  // 水面アニメーション用
+  scene.userData.sea = sea;
+}
 
-// 移動ループ
-AFRAME.registerComponent('player-move', {
-  tick: function () {
-    let obj = player.object3D;
-    const forward = new THREE.Vector3(0,0,-1).applyEuler(obj.rotation);
-    const right = new THREE.Vector3(1,0,0).applyEuler(obj.rotation);
-    const move = forward.multiplyScalar(moveZ).add(right.multiplyScalar(moveX));
-    obj.position.add(move);
+// ========== 木の作成 ==========
+function createTrees() {
+  const treePositions = [
+    [-8, 0, -8], [8, 0, -10], [-12, 0, 3], [12, 0, 5],
+    [-6, 0, 12], [7, 0, 13], [-14, 0, -2], [14, 0, -3],
+    [-3, 0, -15], [4, 0, -16], [0, 0, -12], [-10, 0, 10],
+    [10, 0, -8], [-5, 0, 18], [5, 0, 19], [-18, 0, 6],
+    [18, 0, 2], [-16, 0, -10], [16, 0, -9]
+  ];
 
-    // 海に入れない制限
-    const dist = Math.sqrt(obj.position.x*obj.position.x + obj.position.z*obj.position.z);
-    if (dist > 28) { // 島の半径より大きい場合
-      obj.position.x -= move.x;
-      obj.position.z -= move.z;
+  treePositions.forEach((pos, i) => {
+    createTree(pos[0], pos[2], i);
+  });
+}
+
+function createTree(x, z, seed) {
+  const group = new THREE.Group();
+  
+  // 木の種類をランダムに
+  const types = ['normal', 'fruit', 'palm'];
+  const type = types[seed % 3];
+  
+  if (type === 'palm') {
+    // ヤシの木
+    const trunkGeo = new THREE.CylinderGeometry(0.12, 0.2, 4, 8);
+    const trunkMat = new THREE.MeshLambertMaterial({ color: 0xa0724a });
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.position.y = 2;
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    for (let i = 0; i < 6; i++) {
+      const leafGeo = new THREE.ConeGeometry(0.3, 2, 4);
+      const leafMat = new THREE.MeshLambertMaterial({ color: 0x4a9e4a });
+      const leaf = new THREE.Mesh(leafGeo, leafMat);
+      leaf.position.set(
+        Math.cos(i * Math.PI / 3) * 1.2, 3.8,
+        Math.sin(i * Math.PI / 3) * 1.2
+      );
+      leaf.rotation.z = Math.PI * 0.3;
+      leaf.rotation.y = i * Math.PI / 3;
+      group.add(leaf);
+    }
+  } else {
+    // 通常の木
+    const trunkGeo = new THREE.CylinderGeometry(0.18, 0.25, 2.5, 8);
+    const trunkMat = new THREE.MeshLambertMaterial({ color: 0x8B5A2B });
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.position.y = 1.25;
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    // 葉（3段）
+    const leafColors = [0x2d8a2d, 0x3aa33a, 0x4ab54a];
+    [3.5, 2.8, 2.2].forEach((h, j) => {
+      const leafGeo = new THREE.SphereGeometry(2.5 - j * 0.5, 8, 6);
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafColors[j] });
+      const leaf = new THREE.Mesh(leafGeo, leafMat);
+      leaf.position.y = h;
+      leaf.scale.y = 0.7;
+      leaf.castShadow = true;
+      group.add(leaf);
+    });
+
+    // フルーツ
+    if (type === 'fruit') {
+      const fruitColors = [0xff4444, 0xff8800, 0xffcc00];
+      const fruitColor = fruitColors[seed % 3];
+      for (let i = 0; i < 4; i++) {
+        const fruitGeo = new THREE.SphereGeometry(0.2, 6, 6);
+        const fruitMat = new THREE.MeshLambertMaterial({ color: fruitColor });
+        const fruit = new THREE.Mesh(fruitGeo, fruitMat);
+        fruit.position.set(
+          Math.cos(i * Math.PI / 2) * 1.5, 2.5,
+          Math.sin(i * Math.PI / 2) * 1.5
+        );
+        group.add(fruit);
+      }
+    }
+  }
+
+  group.position.set(x, 0, z);
+  group.userData = { type: 'tree', hasWood: true };
+  scene.add(group);
+  interactables.push(group);
+}
+
+// ========== 花の作成 ==========
+function createFlowers() {
+  const flowerPositions = [
+    [-4, 0, -4], [4, 0, -5], [-6, 0, 6], [6, 0, 8],
+    [2, 0, 10], [-3, 0, 7], [0, 0, -8], [-8, 0, -1],
+    [8, 0, 1], [3, 0, -12], [-2, 0, -10]
+  ];
+
+  const flowerColors = [0xff69b4, 0xff4444, 0xffcc00, 0xff88cc, 0xaa44ff, 0xffffff];
+  
+  flowerPositions.forEach((pos, i) => {
+    const group = new THREE.Group();
+    
+    // 茎
+    const stemGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 6);
+    const stemMat = new THREE.MeshLambertMaterial({ color: 0x4a9e4a });
+    const stem = new THREE.Mesh(stemGeo, stemMat);
+    stem.position.y = 0.25;
+    group.add(stem);
+
+    // 花びら
+    const petalColor = flowerColors[i % flowerColors.length];
+    for (let j = 0; j < 5; j++) {
+      const petalGeo = new THREE.SphereGeometry(0.15, 6, 4);
+      const petalMat = new THREE.MeshLambertMaterial({ color: petalColor });
+      const petal = new THREE.Mesh(petalGeo, petalMat);
+      petal.position.set(
+        Math.cos(j * Math.PI * 2 / 5) * 0.2, 0.5,
+        Math.sin(j * Math.PI * 2 / 5) * 0.2
+      );
+      petal.scale.set(1, 0.5, 1);
+      group.add(petal);
+    }
+    
+    // 花芯
+    const coreGeo = new THREE.SphereGeometry(0.12, 8, 8);
+    const coreMat = new THREE.MeshLambertMaterial({ color: 0xffdd00 });
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.position.y = 0.52;
+    group.add(core);
+
+    group.position.set(pos[0], 0, pos[2]);
+    group.userData = { type: 'flower', hasFlower: true };
+    scene.add(group);
+    interactables.push(group);
+  });
+}
+
+// ========== 川の作成 ==========
+function createRiver() {
+  const points = [];
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20;
+    points.push(new THREE.Vector3(
+      Math.sin(t * Math.PI * 2) * 3 - 6,
+      0.05,
+      t * 30 - 18
+    ));
+  }
+  
+  const curve = new THREE.CatmullRomCurve3(points);
+  const tubeGeo = new THREE.TubeGeometry(curve, 30, 0.8, 8, false);
+  const tubeMat = new THREE.MeshLambertMaterial({ 
+    color: 0x4ab5cc, transparent: true, opacity: 0.85 
+  });
+  const river = new THREE.Mesh(tubeGeo, tubeMat);
+  scene.add(river);
+  
+  // 釣りポイント
+  const fishPoint = new THREE.Group();
+  const fpGeo = new THREE.SphereGeometry(0.3, 8, 8);
+  const fpMat = new THREE.MeshLambertMaterial({ color: 0x4ab5cc, transparent: true, opacity: 0.6 });
+  const fp = new THREE.Mesh(fpGeo, fpMat);
+  fp.position.y = 0.2;
+  fishPoint.add(fp);
+  fishPoint.position.set(-6, 0, 0);
+  fishPoint.userData = { type: 'river', hasFish: true };
+  scene.add(fishPoint);
+  interactables.push(fishPoint);
+}
+
+// ========== 家の作成 ==========
+function createHouses() {
+  createHouse(0, -20, 0, 0xffdab9, '🏠'); // プレイヤーの家
+  createHouse(-8, -22, 0, 0xffc0cb, '🏡'); // NPC家1
+  createHouse(8, -22, 0, 0xc0e8ff, '🏡'); // NPC家2
+}
+
+function createHouse(x, z, ry, wallColor, emoji) {
+  const group = new THREE.Group();
+
+  // 壁
+  const wallGeo = new THREE.BoxGeometry(4, 3, 4);
+  const wallMat = new THREE.MeshLambertMaterial({ color: wallColor });
+  const wall = new THREE.Mesh(wallGeo, wallMat);
+  wall.position.y = 1.5;
+  wall.castShadow = true;
+  wall.receiveShadow = true;
+  group.add(wall);
+
+  // 屋根
+  const roofGeo = new THREE.ConeGeometry(3.2, 2, 4);
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+  const roof = new THREE.Mesh(roofGeo, roofMat);
+  roof.position.y = 4;
+  roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  group.add(roof);
+
+  // ドア
+  const doorGeo = new THREE.BoxGeometry(0.8, 1.5, 0.1);
+  const doorMat = new THREE.MeshLambertMaterial({ color: 0x8B5A2B });
+  const door = new THREE.Mesh(doorGeo, doorMat);
+  door.position.set(0, 0.75, 2.05);
+  group.add(door);
+
+  // 窓
+  [-1.2, 1.2].forEach(wx => {
+    const winGeo = new THREE.BoxGeometry(0.7, 0.7, 0.1);
+    const winMat = new THREE.MeshLambertMaterial({ color: 0x87ceeb });
+    const win = new THREE.Mesh(winGeo, winMat);
+    win.position.set(wx, 1.8, 2.05);
+    group.add(win);
+  });
+
+  group.position.set(x, 0, z);
+  group.rotation.y = ry;
+  scene.add(group);
+}
+
+// ========== きのこの作成 ==========
+function createMushrooms() {
+  const positions = [[3, 0, 2], [-5, 0, 4], [7, 0, -3], [-2, 0, 9]];
+  
+  positions.forEach((pos, i) => {
+    const group = new THREE.Group();
+    
+    const stemGeo = new THREE.CylinderGeometry(0.12, 0.16, 0.5, 8);
+    const stemMat = new THREE.MeshLambertMaterial({ color: 0xfffacd });
+    const stem = new THREE.Mesh(stemGeo, stemMat);
+    stem.position.y = 0.25;
+    group.add(stem);
+
+    const capGeo = new THREE.SphereGeometry(0.35, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.6);
+    const capColors = [0xff4444, 0xff8800, 0xffcc00, 0xaa44ff];
+    const capMat = new THREE.MeshLambertMaterial({ color: capColors[i] });
+    const cap = new THREE.Mesh(capGeo, capMat);
+    cap.position.y = 0.6;
+    group.add(cap);
+
+    // 水玉
+    for (let j = 0; j < 4; j++) {
+      const dotGeo = new THREE.SphereGeometry(0.05, 4, 4);
+      const dotMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+      const dot = new THREE.Mesh(dotGeo, dotMat);
+      dot.position.set(
+        Math.cos(j * Math.PI / 2) * 0.22, 0.72,
+        Math.sin(j * Math.PI / 2) * 0.22
+      );
+      group.add(dot);
     }
 
-    // 高さ固定（埋もれ防止）
-    if (obj.position.y < 1.2) obj.position.y = 1.2;
+    group.position.set(pos[0], 0, pos[2]);
+    group.userData = { type: 'mushroom', hasMushroom: true };
+    scene.add(group);
+    interactables.push(group);
+  });
+}
 
-    // カメラ追従
-    camera.object3D.position.x = obj.position.x;
-    camera.object3D.position.z = obj.position.z + (mode===0?6:-6);
-    camera.object3D.position.y = obj.position.y + 2;
-    camera.object3D.lookAt(new THREE.Vector3(obj.position.x, obj.position.y + 1, obj.position.z));
+// ========== NPCの作成 ==========
+function createNPCs() {
+  const npcData = [
+    { x: -6, z: 2, color: 0xffaa88, name: 'たぬき' },
+    { x: 5, z: -5, color: 0x88aaff, name: 'りすのこ' },
+    { x: -3, z: 8, color: 0xff88aa, name: 'うしこ' },
+  ];
+
+  npcData.forEach(data => {
+    const group = new THREE.Group();
+
+    // 体
+    const bodyGeo = new THREE.CapsuleGeometry(0.35, 0.6, 4, 8);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: data.color });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.85;
+    body.castShadow = true;
+    group.add(body);
+
+    // 頭
+    const headGeo = new THREE.SphereGeometry(0.38, 8, 8);
+    const headMat = new THREE.MeshLambertMaterial({ color: data.color });
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.y = 1.7;
+    head.castShadow = true;
+    group.add(head);
+
+    // 目
+    [-0.12, 0.12].forEach(ex => {
+      const eyeGeo = new THREE.SphereGeometry(0.06, 6, 6);
+      const eyeMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      eye.position.set(ex, 1.76, 0.3);
+      group.add(eye);
+    });
+
+    // 耳
+    [-0.22, 0.22].forEach(ex => {
+      const earGeo = new THREE.SphereGeometry(0.12, 6, 6);
+      const earMat = new THREE.MeshLambertMaterial({ color: data.color });
+      const ear = new THREE.Mesh(earGeo, earMat);
+      ear.position.set(ex, 2.05, 0);
+      ear.scale.y = 1.4;
+      group.add(ear);
+    });
+
+    group.position.set(data.x, 0, data.z);
+    group.userData = { type: 'npc', name: data.name };
+    group.userData.walkAngle = Math.random() * Math.PI * 2;
+    group.userData.walkRadius = 2 + Math.random() * 1.5;
+    group.userData.walkSpeed = 0.3 + Math.random() * 0.3;
+    group.userData.baseX = data.x;
+    group.userData.baseZ = data.z;
+    
+    scene.add(group);
+    npcs.push(group);
+    interactables.push(group);
+  });
+}
+
+// ========== プレイヤーモデル読み込み ==========
+function loadPlayerModel() {
+  // GLTFLoaderをCDNから動的に読み込む
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js';
+  script.onload = () => {
+    try {
+      const loader = new THREE.GLTFLoader();
+      // ファイルはoutputsディレクトリに配置済み
+      loader.load(
+        'girl_character_3d_model.glb',
+        (gltf) => {
+          player = gltf.scene;
+          // スケール調整（GLBのサイズに応じて）
+          player.scale.set(1, 1, 1);
+          
+          // バウンディングボックスでサイズを確認してスケール調整
+          const bbox = new THREE.Box3().setFromObject(player);
+          const size = new THREE.Vector3();
+          bbox.getSize(size);
+          const maxDim = Math.max(size.x, size.y, size.z);
+          if (maxDim > 0) {
+            const targetHeight = 1.8;
+            const scale = targetHeight / maxDim;
+            player.scale.set(scale, scale, scale);
+          }
+          
+          player.position.set(0, 0, 0);
+          player.traverse(child => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+
+          // アニメーション
+          if (gltf.animations && gltf.animations.length > 0) {
+            mixer = new THREE.AnimationMixer(player);
+            const idleAnim = gltf.animations[0];
+            const action = mixer.clipAction(idleAnim);
+            action.play();
+          }
+
+          scene.add(player);
+          playerBody = player;
+        },
+        undefined,
+        (err) => {
+          console.warn('GLB load error:', err);
+          createFallbackPlayer();
+        }
+      );
+    } catch(e) {
+      createFallbackPlayer();
+    }
+  };
+  script.onerror = () => createFallbackPlayer();
+  document.head.appendChild(script);
+}
+
+function createFallbackPlayer() {
+  // GLBが読み込めない場合のフォールバック（かわいいキャラ）
+  const group = new THREE.Group();
+  
+  // 体
+  const bodyGeo = new THREE.CapsuleGeometry(0.3, 0.6, 4, 8);
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0xff8fa0 });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 0.9;
+  body.castShadow = true;
+  group.add(body);
+
+  // 頭
+  const headGeo = new THREE.SphereGeometry(0.36, 10, 10);
+  const headMat = new THREE.MeshLambertMaterial({ color: 0xffcdb4 });
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.y = 1.7;
+  head.castShadow = true;
+  group.add(head);
+
+  // 目
+  [-0.13, 0.13].forEach(ex => {
+    const eyeGeo = new THREE.SphereGeometry(0.065, 6, 6);
+    const eyeMat = new THREE.MeshLambertMaterial({ color: 0x3a2020 });
+    const eye = new THREE.Mesh(eyeGeo, eyeMat);
+    eye.position.set(ex, 1.75, 0.3);
+    group.add(eye);
+    
+    // ハイライト
+    const hlGeo = new THREE.SphereGeometry(0.02, 4, 4);
+    const hlMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const hl = new THREE.Mesh(hlGeo, hlMat);
+    hl.position.set(ex + 0.02, 1.77, 0.35);
+    group.add(hl);
+  });
+
+  // 頬
+  [-0.24, 0.24].forEach(cx => {
+    const cheekGeo = new THREE.SphereGeometry(0.1, 6, 6);
+    const cheekMat = new THREE.MeshLambertMaterial({ color: 0xffaaaa, transparent: true, opacity: 0.7 });
+    const cheek = new THREE.Mesh(cheekGeo, cheekMat);
+    cheek.position.set(cx, 1.65, 0.28);
+    cheek.scale.z = 0.3;
+    group.add(cheek);
+  });
+
+  // 髪
+  const hairGeo = new THREE.SphereGeometry(0.4, 8, 8);
+  const hairMat = new THREE.MeshLambertMaterial({ color: 0x3a2010 });
+  const hair = new THREE.Mesh(hairGeo, hairMat);
+  hair.position.y = 1.95;
+  hair.scale.set(1, 0.65, 1);
+  group.add(hair);
+
+  group.position.set(0, 0, 0);
+  scene.add(group);
+  player = group;
+  playerBody = group;
+}
+
+// ========== パーティクル ==========
+function spawnParticles(x, y, z, color) {
+  for (let i = 0; i < 12; i++) {
+    const geo = new THREE.SphereGeometry(0.06, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const p = new THREE.Mesh(geo, mat);
+    p.position.set(x, y, z);
+    p.userData.vel = new THREE.Vector3(
+      (Math.random() - 0.5) * 0.2,
+      0.1 + Math.random() * 0.15,
+      (Math.random() - 0.5) * 0.2
+    );
+    p.userData.life = 1.0;
+    scene.add(p);
+    particles.push(p);
   }
-});
+}
 
-player.setAttribute('player-move','');
+// ========== カメラ更新 ==========
+function updateCamera() {
+  if (!camera) return;
+  const px = player ? player.position.x : 0;
+  const pz = player ? player.position.z : 0;
+  const py = player ? player.position.y : 0;
+  
+  camera.position.set(
+    px + Math.sin(cameraAngle) * cameraDistance * Math.cos(cameraPitch),
+    py + cameraDistance * Math.sin(cameraPitch),
+    pz + Math.cos(cameraAngle) * cameraDistance * Math.cos(cameraPitch)
+  );
+  camera.lookAt(px, py + 1, pz);
+}
+
+// ========== 入力処理 ==========
+const keys = {};
+
+function onKeyDown(e) {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key.toLowerCase() === 'e') tryInteract();
+}
+
+function onKeyUp(e) {
+  keys[e.key.toLowerCase()] = false;
+}
+
+function onMouseDown(e) {
+  if (e.button === 0 && e.target === renderer.domElement) {
+    isDragging = true;
+    lastMouse = { x: e.clientX, y: e.clientY };
+  }
+}
+
+function onMouseMove(e) {
+  if (!isDragging) return;
+  const dx = e.clientX - lastMouse.x;
+  const dy = e.clientY - lastMouse.y;
+  cameraAngle += dx * 0.008;
+  cameraPitch = Math.max(0.1, Math.min(1.2, cameraPitch - dy * 0.005));
+  lastMouse = { x: e.clientX, y: e.clientY };
+}
+
+function onMouseUp() {
+  isDragging = false;
+}
+
+function onWheel(e) {
+  cameraDistance = Math.max(4, Math.min(25, cameraDistance + e.deltaY * 0.01));
+}
+
+function onCanvasClick(e) {
+  if (Math.abs(e.movementX) + Math.abs(e.movementY) > 5) return;
+  tryInteract();
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// ========== インタラクション ==========
+function tryInteract() {
+  if (!player) return;
+  let nearest = null;
+  let nearestDist = 3.5;
+  
+  interactables.forEach(obj => {
+    const dist = player.position.distanceTo(obj.position);
+    if (dist < nearestDist) {
+      nearest = obj;
+      nearestDist = dist;
+    }
+  });
+
+  if (nearest) {
+    const type = nearest.userData.type;
+    
+    if (type === 'tree' && nearest.userData.hasWood) {
+      if (currentTool === 'axe') {
+        inventory.wood++;
+        bells += 150;
+        nearest.userData.hasWood = false;
+        showMessage('🪓 木材をゲット！\n+150ベル 💰');
+        spawnParticles(nearest.position.x, 2, nearest.position.z, 0xc8a060);
+        updateInventory();
+        // 木を揺らす
+        const origY = nearest.position.y;
+        const shake = () => {
+          nearest.position.x += (Math.random() - 0.5) * 0.1;
+          nearest.position.y += 0.05;
+        };
+        setTimeout(() => nearest.position.x = nearest.position.x, 300);
+      } else {
+        showMessage('🪓 おのを選んで\n木を切ろう！');
+      }
+    } else if (type === 'river' && nearest.userData.hasFish) {
+      if (currentTool === 'fish') {
+        inventory.fish++;
+        bells += 300;
+        showMessage('🐟 さかなを釣った！\n+300ベル 💰');
+        spawnParticles(nearest.position.x, 0.5, nearest.position.z, 0x4ab5cc);
+        updateInventory();
+      } else {
+        showMessage('🎣 つりざおを選んで\n川で釣りをしよう！');
+      }
+    } else if (type === 'flower' && nearest.userData.hasFlower) {
+      if (currentTool === 'flower' || currentTool === 'walk') {
+        inventory.flower++;
+        bells += 80;
+        nearest.userData.hasFlower = false;
+        nearest.visible = false;
+        showMessage('🌸 はなを摘んだ！\n+80ベル 💰');
+        spawnParticles(nearest.position.x, 0.5, nearest.position.z, 0xff69b4);
+        updateInventory();
+      }
+    } else if (type === 'mushroom' && nearest.userData.hasMushroom) {
+      inventory.mushroom++;
+      bells += 200;
+      nearest.userData.hasMushroom = false;
+      nearest.visible = false;
+      showMessage('🍄 きのこをとった！\n+200ベル 💰');
+      spawnParticles(nearest.position.x, 0.5, nearest.position.z, 0xff4444);
+      updateInventory();
+    } else if (type === 'npc') {
+      const messages = [
+        `「こんにちは！\n${nearest.userData.name}だよ！✨」`,
+        `「今日もいい天気だね！\nいっしょにあそぼう♪」`,
+        `「きれいな花だね〜\nたくさん集めてね！🌸」`,
+        `「たぬきさんのお店で\nいろいろ買えるよ！🏪」`,
+        `「川でさかな\n釣れたかな？🐟」`,
+      ];
+      const msg = messages[Math.floor(Math.random() * messages.length)];
+      showMessage(msg);
+    }
+  }
+}
+
+// ========== UI更新 ==========
+function updateInventory() {
+  document.getElementById('axe-count').textContent = inventory.wood;
+  document.getElementById('fish-count').textContent = inventory.fish;
+  document.getElementById('flower-count').textContent = inventory.flower;
+  document.getElementById('mushroom-count').textContent = inventory.mushroom;
+  document.getElementById('bell-count').textContent = bells.toLocaleString();
+}
+
+let msgTimeout;
+function showMessage(text) {
+  const el = document.getElementById('action-msg');
+  el.textContent = '';
+  el.style.display = 'block';
+  el.style.animation = 'none';
+  el.offsetHeight;
+  el.style.animation = 'msgPop 0.3s ease-out';
+  el.innerHTML = text.replace(/\n/g, '<br>');
+  clearTimeout(msgTimeout);
+  msgTimeout = setTimeout(() => {
+    el.style.display = 'none';
+  }, 2500);
+}
+
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('time-display').textContent = `${h}:${m}`;
+}
+
+function setTool(tool) {
+  currentTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`btn-${tool}`).classList.add('active');
+  const toolNames = { walk: '🏃 歩きモード', axe: '🪓 おのモード', fish: '🎣 つりモード', flower: '🌸 花つみモード', chat: '💬 はなすモード' };
+  showMessage(toolNames[tool] + ' に切り替えた！');
+}
+
+// ========== メインループ ==========
+let time = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  time += delta;
+
+  if (!gameStarted || !player) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  // プレイヤー移動
+  const speed = 5.5;
+  const forward = new THREE.Vector3(
+    -Math.sin(cameraAngle), 0, -Math.cos(cameraAngle)
+  );
+  const right = new THREE.Vector3(
+    Math.cos(cameraAngle), 0, -Math.sin(cameraAngle)
+  );
+  
+  let moving = false;
+  const moveVec = new THREE.Vector3();
+
+  if (keys['w'] || keys['arrowup']) { moveVec.addScaledVector(forward, speed * delta); moving = true; }
+  if (keys['s'] || keys['arrowdown']) { moveVec.addScaledVector(forward, -speed * delta); moving = true; }
+  if (keys['a'] || keys['arrowleft']) { moveVec.addScaledVector(right, -speed * delta); moving = true; }
+  if (keys['d'] || keys['arrowright']) { moveVec.addScaledVector(right, speed * delta); moving = true; }
+
+  if (moving) {
+    player.position.add(moveVec);
+    // 島の外に出ないように制限
+    const dist = Math.sqrt(player.position.x ** 2 + player.position.z ** 2);
+    if (dist > 36) {
+      player.position.multiplyScalar(36 / dist);
+    }
+    
+    // 移動方向を向く
+    if (moveVec.length() > 0) {
+      const angle = Math.atan2(moveVec.x, moveVec.z);
+      player.rotation.y = angle;
+    }
+
+    // 歩きアニメ（上下揺れ）
+    player.position.y = Math.abs(Math.sin(time * 8)) * 0.06;
+  } else {
+    player.position.y = Math.abs(Math.sin(time * 2)) * 0.02;
+  }
+
+  // アニメーションミキサー更新
+  if (mixer) mixer.update(delta);
+
+  // NPC移動（巡回）
+  npcs.forEach(npc => {
+    npc.userData.walkAngle += npc.userData.walkSpeed * delta;
+    const tx = npc.userData.baseX + Math.cos(npc.userData.walkAngle) * npc.userData.walkRadius;
+    const tz = npc.userData.baseZ + Math.sin(npc.userData.walkAngle) * npc.userData.walkRadius;
+    npc.position.x += (tx - npc.position.x) * 0.05;
+    npc.position.z += (tz - npc.position.z) * 0.05;
+    npc.position.y = Math.abs(Math.sin(time * 4 + npc.userData.walkAngle)) * 0.04;
+    
+    const dx = tx - npc.position.x;
+    const dz = tz - npc.position.z;
+    if (Math.abs(dx) + Math.abs(dz) > 0.01) {
+      npc.rotation.y = Math.atan2(dx, dz);
+    }
+  });
+
+  // パーティクル更新
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.userData.life -= delta * 1.5;
+    p.position.add(p.userData.vel);
+    p.userData.vel.y -= 0.004;
+    p.material.opacity = p.userData.life;
+    p.scale.setScalar(p.userData.life);
+    if (p.userData.life <= 0) {
+      scene.remove(p);
+      particles.splice(i, 1);
+    }
+  }
+
+  // 花・木の揺れ
+  interactables.forEach(obj => {
+    if (obj.userData.type === 'flower') {
+      obj.rotation.z = Math.sin(time * 2 + obj.position.x) * 0.05;
+    } else if (obj.userData.type === 'tree') {
+      obj.children.forEach((c, j) => {
+        if (j > 0) {
+          c.rotation.z = Math.sin(time * 1.5 + obj.position.x + j) * 0.03;
+        }
+      });
+    }
+  });
+
+  // 水面アニメーション
+  if (scene.userData.sea) {
+    scene.userData.sea.position.y = -0.2 + Math.sin(time * 0.5) * 0.05;
+    scene.userData.sea.material.opacity = 0.85 + Math.sin(time * 0.8) * 0.05;
+  }
+
+  updateCamera();
+  renderer.render(scene, camera);
+}
 </script>
-
 </body>
 </html>
