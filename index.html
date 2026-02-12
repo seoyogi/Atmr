@@ -265,14 +265,16 @@
     display: none;
     touch-action: none;
     backdrop-filter: blur(4px);
+    /* Babylonカメラ操作と独立させるためcanvas外に配置済み */
+    user-select: none;
   }
   #joystick-knob {
-    position: absolute; top: 50%; left: 50%;
+    position: absolute;
     width: 60px; height: 60px;
     background: #fff;
     border: 4px solid var(--green);
     border-radius: 50%;
-    transform: translate(-50%, -50%);
+
     box-shadow: var(--shadow);
     pointer-events: none;
   }
@@ -766,47 +768,70 @@ function setupInput(scene, canvas) {
 
 function setupJoystick() {
   const container = document.getElementById('joystick-container');
-  const knob = document.getElementById('joystick-knob');
-  
-  const handlePointer = (e) => {
-    if (!joystickActive) return;
-    
-    // コンテナの中心座標を取得
-    const rect = container.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const maxRadius = rect.width / 2;
+  const knob      = document.getElementById('joystick-knob');
+  // コンテナサイズに合わせてknobを中央に初期配置
+  const knobHalf = 30; // knob width/2
 
-    // 中心からの距離を計算
-    let dx = e.clientX - centerX;
-    let dy = e.clientY - centerY;
-    
+  function centerKnob() {
+    const r = container.getBoundingClientRect();
+    const cx = r.width  / 2 - knobHalf;
+    const cy = r.height / 2 - knobHalf;
+    knob.style.left = cx + 'px';
+    knob.style.top  = cy + 'px';
+  }
+  centerKnob();
+
+  const moveKnob = (e) => {
+    if (!joystickActive) return;
+    // touch対応
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    const rect      = container.getBoundingClientRect();
+    const centerX   = rect.left + rect.width  / 2;
+    const centerY   = rect.top  + rect.height / 2;
+    const maxRadius = rect.width / 2 - knobHalf;
+
+    let dx = clientX - centerX;
+    let dy = clientY - centerY;
     const dist = Math.sqrt(dx*dx + dy*dy);
     if (dist > maxRadius) {
       dx *= maxRadius / dist;
       dy *= maxRadius / dist;
     }
-    
-    knob.style.left = `calc(50% + ${dx}px)`;
-    knob.style.top = `calc(50% + ${dy}px)`;
-    
-    // 正規化したベクトル (-1.0 ～ 1.0)
-    joystickVector = { x: dx / maxRadius, y: dy / maxRadius };
+
+    // knobの左上基準でleft/topを設定（transformなし）
+    knob.style.left = (rect.width  / 2 - knobHalf + dx) + 'px';
+    knob.style.top  = (rect.height / 2 - knobHalf + dy) + 'px';
+
+    const norm = maxRadius > 0 ? maxRadius : 1;
+    joystickVector = { x: dx / norm, y: dy / norm };
   };
 
+  const resetKnob = () => {
+    joystickActive = false;
+    joystickVector = { x: 0, y: 0 };
+    centerKnob();
+  };
+
+  // pointer events（PCとタブレット共用）
   container.addEventListener('pointerdown', (e) => {
+    e.stopPropagation(); // Babylonカメラへの伝播を防ぐ
     joystickActive = true;
     container.setPointerCapture(e.pointerId);
-    handlePointer(e);
+    moveKnob(e);
   });
-  
-  container.addEventListener('pointermove', handlePointer);
-  
-  container.addEventListener('pointerup', (e) => {
-    joystickActive = false;
-    knob.style.left = `50%`;
-    knob.style.top = `50%`;
-    joystickVector = { x: 0, y: 0 };
+  container.addEventListener('pointermove', (e) => {
+    e.stopPropagation();
+    moveKnob(e);
+  });
+  container.addEventListener('pointerup',   (e) => {
+    e.stopPropagation();
+    resetKnob();
+  });
+  container.addEventListener('pointercancel', (e) => {
+    e.stopPropagation();
+    resetKnob();
   });
 }
 
