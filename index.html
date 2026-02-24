@@ -23,7 +23,7 @@ html, body {
 
 <!-- Babylon本体 -->
 <script src="https://cdn.babylonjs.com/babylon.js"></script>
-<!-- ★ これが超重要：glTFローダー -->
+<!-- glTFローダー（必須） -->
 <script src="https://cdn.babylonjs.com/loaders/babylon.glTFFileLoader.js"></script>
 
 <script>
@@ -34,7 +34,14 @@ const createScene = function () {
   const scene = new BABYLON.Scene(engine);
   scene.clearColor = new BABYLON.Color4(0.8, 0.9, 1.0, 1);
 
-  // カメラ
+  // ===== 環境テクスチャ（金属復活の鍵）=====
+  scene.environmentTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
+    "https://playground.babylonjs.com/textures/environment.env",
+    scene
+  );
+  scene.createDefaultSkybox(scene.environmentTexture, true);
+
+  // ===== カメラ =====
   const camera = new BABYLON.ArcRotateCamera(
     "camera",
     Math.PI / 2,
@@ -45,7 +52,7 @@ const createScene = function () {
   );
   camera.attachControl(canvas, true);
 
-  // ライト
+  // ===== ライト =====
   const light = new BABYLON.HemisphericLight(
     "light",
     new BABYLON.Vector3(0, 1, 0),
@@ -53,7 +60,7 @@ const createScene = function () {
   );
   light.intensity = 1.2;
 
-  // 地面
+  // ===== 地面 =====
   const ground = BABYLON.MeshBuilder.CreateGround("ground", {
     width: 20,
     height: 20
@@ -70,9 +77,28 @@ const createScene = function () {
     "Car.glb",
     scene,
     function (meshes) {
-      const root = meshes[0];
-      root.scaling = new BABYLON.Vector3(1, 1, 1);
-      root.position = new BABYLON.Vector3(0, 0, 0);
+
+      meshes.forEach(mesh => {
+
+        console.log("Mesh name:", mesh.name);
+
+        // GLB内の白い地面を削除
+        const name = mesh.name.toLowerCase();
+        if (
+          name.includes("ground") ||
+          name.includes("plane") ||
+          name.includes("floor")
+        ) {
+          mesh.dispose();
+        }
+
+        // 金属マテリアル強化
+        if (mesh.material && mesh.material.metallic !== undefined) {
+          mesh.material.metallic = 1.0;
+          mesh.material.roughness = 0.2;
+        }
+
+      });
 
       console.log("Car loaded!");
     },
